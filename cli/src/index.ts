@@ -28,6 +28,7 @@ program
 program
     .command('install <skill>')
     .alias('i')
+    .alias('add')
     .description('Install a skill by name, URL, or local path')
     .option('-d, --dir <directory>', 'Target directory', '.')
     .option('-u, --universal', 'Install to .agent/skills/')
@@ -38,14 +39,32 @@ program
     .option('--private', 'Force private repository mode')
     .option('--token <token>', 'GitHub personal access token')
     .option('--ssh-key <path>', 'SSH key path for private repos')
+    .option('--skill <name>', 'Specific skill name to install (when using a repo URL)')
+    .option('--native', 'Install directly to all detected AI agent directories')
     .action(async (skill: string, options) => {
-        await installSkill(skill, options);
+        // If it's a repo URL or owner/repo, handle --skill flag
+        let installPath = skill;
+
+        // Handle owner/repo format
+        if (!skill.includes('github.com') && !skill.startsWith('http') && skill.includes('/') && !skill.includes('\\')) {
+            installPath = `https://github.com/${skill}`;
+        }
+
+        // If it's a URL and --skill is provided, append it to the path
+        if ((installPath.includes('github.com') || installPath.startsWith('http')) && options.skill) {
+            // Only append if it doesn't already have a tree path
+            if (!installPath.includes('/tree/') && !installPath.includes('/blob/')) {
+                installPath = `${installPath.replace(/\.git$/, '')}/tree/main/${options.skill}`;
+            }
+        }
+
+        await installSkill(installPath, options);
     });
 
-// Add command - supports owner/repo format with optional --skill flag
+// Keep 'add' as an explicit command for discovery, but it uses the same logic
 program
     .command('add <repo>')
-    .description('Add skill(s) from a GitHub repo (e.g., owner/repo)')
+    .description('Add skill(s) from a GitHub repo (e.g., owner/repo or URL)')
     .option('--skill <name>', 'Install a specific skill from the repo')
     .option('-d, --dir <directory>', 'Target directory', '.')
     .option('-u, --universal', 'Install to .agent/skills/')
@@ -55,18 +74,21 @@ program
     .option('--private', 'Force private repository mode')
     .option('--token <token>', 'GitHub personal access token')
     .option('--ssh-key <path>', 'SSH key path for private repos')
+    .option('--native', 'Install directly to all detected AI agent directories')
     .action(async (repo: string, options) => {
-        // Convert owner/repo format to GitHub URL
-        let skillPath = repo;
-        if (!repo.includes('github.com') && !repo.startsWith('http') && repo.includes('/')) {
-            // It's in owner/repo format, convert to URL
-            skillPath = `https://github.com/${repo}`;
-            if (options.skill) {
-                // Append the specific skill path
-                skillPath = `${skillPath}/tree/main/${options.skill}`;
+        // Use the same logic as install/add alias
+        let installPath = repo;
+
+        if (!repo.includes('github.com') && !repo.startsWith('http') && repo.includes('/') && !repo.includes('\\')) {
+            installPath = `https://github.com/${repo}`;
+        }
+
+        if ((installPath.includes('github.com') || installPath.startsWith('http')) && options.skill) {
+            if (!installPath.includes('/tree/') && !installPath.includes('/blob/')) {
+                installPath = `${installPath.replace(/\.git$/, '')}/tree/main/${options.skill}`;
             }
         }
-        await installSkill(skillPath, options);
+        await installSkill(installPath, options);
     });
 
 program

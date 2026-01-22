@@ -2,7 +2,7 @@
 declare function require(name: string): any;
 
 export async function promptUser(questions: any[]): Promise<any> {
-    // Use require for runtime import to avoid TypeScript module resolution issues
-    const inquirer = require('inquirer');
-    return inquirer.prompt(questions);
+    // Use dynamic import for ESM inquirer in CJS project
+    const { default: inquirer } = await import('inquirer');
+    return (inquirer as any).prompt(questions);
 }

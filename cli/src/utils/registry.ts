@@ -14,6 +14,9 @@ const REGISTRY_FALLBACK_URL = CLI_BRANDING.fallback_url;
 const CACHE_FILE = path.join(os.homedir(), `.${CLI_BRANDING.brand_lower_name}`, 'registry_cache.json');
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+// External Registry: skills.sh (Industry Standard)
+const SKILLS_SH_REGISTRY_URL = 'https://skills.sh/.well-known/skills/index.json';
+
 /**
  * Get the path to the bundled skills registry (fallback).
  * Single source of truth: root recommended_skills.json
@@ -188,12 +191,44 @@ export async function findSkill(query: string): Promise<SkillDefinition | undefi
 
     // 2. Fallback to Full Registry (Cache/Bundled)
     const registry = await _getRegistry();
-    return registry.find(
+    const localResult = registry.find(
         (skill) =>
             skill.id.toLowerCase() === lowerQuery ||
             skill.name.toLowerCase() === lowerQuery ||
             skill.folder_name.toLowerCase() === lowerQuery
     );
+
+    if (localResult) return localResult;
+
+    // 3. NEW: Fallback to skills.sh (Cross-Registry Support)
+    try {
+        const response = await fetch(SKILLS_SH_REGISTRY_URL);
+        if (response.ok) {
+            const data = await response.json();
+            const skills = (Array.isArray(data) ? data : (data.skills || []));
+            const remoteSkill = skills.find((s: any) =>
+                (s.id?.toLowerCase() === lowerQuery) ||
+                (s.name?.toLowerCase() === lowerQuery) ||
+                (s.url && s.url.toLowerCase().includes(lowerQuery))
+            );
+
+            if (remoteSkill) {
+                return {
+                    id: remoteSkill.id || lowerQuery,
+                    name: remoteSkill.name || lowerQuery,
+                    url: remoteSkill.url || remoteSkill.github_url || '',
+                    description: remoteSkill.description || '',
+                    folder_name: remoteSkill.id || lowerQuery,
+                    source: 'registry', // Treat as registry as we proxy it
+                    tags: remoteSkill.tags || []
+                };
+            }
+        }
+    } catch (e) {
+        // Fallback failed, return undefined
+    }
+
+    return undefined;
 }
 
 /**

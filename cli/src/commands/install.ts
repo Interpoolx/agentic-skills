@@ -24,6 +24,7 @@ interface InstallOptions {
     token?: string;
     sshKey?: string;
     private?: boolean;
+    native?: boolean;
 }
 
 /**
@@ -52,6 +53,13 @@ export async function installSkill(skillNameOrUrl: string, options: InstallOptio
         await installFromUrl(skillNameOrUrl, skillsDir, options);
     } else {
         await installFromRegistry(skillNameOrUrl, skillsDir, options);
+    }
+
+    // NEW: Handle native install if requested
+    if (options.native) {
+        console.log(chalk.cyan('\n🚀 Performing native install to AI agents...'));
+        const { exportToAgents } = await import('./export-agents');
+        await exportToAgents({ all: true, yes: true });
     }
 }
 

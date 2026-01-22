@@ -1,5 +1,5 @@
 -- Ralphy Skills Local Database Export
--- Generated: 2026-01-22T12:12:00.962Z
+-- Generated: 2026-01-22T13:03:14.540Z
 -- Source: Local D1 (miniflare)
 
 PRAGMA foreign_keys = OFF;

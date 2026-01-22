@@ -2,6 +2,8 @@
 
 🚀 **The #1 Universal Skills CLI for AI Coding Agents**
 
+Browse all available skills at [agenticskills.org](https://agenticskills.org)
+
 Install, manage, and sync AI agent skills from the terminal. Works with **15+ AI coding tools** including Cursor, VS Code + Copilot, Claude Code, Windsurf, Gemini CLI, Aider, OpenCode, Codex CLI, Amp, Goose, Letta, Trae, Qoder, CodeBuddy, and Antigravity.
 
 [![npm version](https://badge.fury.io/js/agentic-skills.svg)](https://www.npmjs.com/package/agentic-skills)
@@ -14,15 +16,21 @@ Install, manage, and sync AI agent skills from the terminal. Works with **15+ AI
 - 🌐 **Our Own Registry** - Using marketplace.json as source of truth
 - ⚡ All previous features from v2.1.0 (doctor, init, export, toggle, config, lock, import)
 
-## Installation
+# Installation
 
 ```bash
 # Use with npx (no installation needed)
-npx agentic-skills doctor
+npx agentic-skills add vercel-react-best-practices
 
 # Or install globally
 npm install -g agentic-skills
 ```
+
+## 🔒 Privacy First (Zero Telemetry)
+Unlike other tools that collect telemetry to "rank" skills, **Agentic Skills is 100% private**. 
+- No tracking. 
+- No analytics. 
+- No data leaves your machine.
 
 ## 🩺 Quick Start
 
@@ -30,14 +38,14 @@ npm install -g agentic-skills
 # 1. Diagnose your environment
 npx agentic-skills doctor
 
-# 2. Initialize your project
-npx agentic-skills init
+# 2. Add a skill from our registry or skills.sh
+npx agentic-skills add vercel-react-best-practices
 
-# 3. Install skills
-npx agentic-skills install vercel-react-best-practices
+# 3. Add directly to your AI Agents (Native Install)
+npx agentic-skills add vercel-react-best-practices --native
 
-# 4. Sync AGENTS.md
-npx agentic-skills sync
+# 4. Add from any GitHub repo
+npx agentic-skills add user/repo --skill my-skill
 ```
 
 ## 📋 Commands
@@ -46,10 +54,11 @@ npx agentic-skills sync
 
 | Command | Description |
 |---------|-------------|
-| `install <skill>` | Install a skill by name, URL, or local path |
+| `add <skill>` | Add a skill by name, URL, or local path |
+| `add <skill> --native` | Direct install to all detected AI tools |
 | `list` | List installed skills |
 | `list --registry` | Browse available skills from registry |
-| `search <query>` | Search for skills |
+| `search <query>` | Search for skills (Full-text search) |
 | `update` | Update all installed skills |
 | `remove <skill>` | Remove a skill |
 | `manage` | Interactive TUI for skill management |
@@ -163,6 +172,9 @@ npx agentic-skills import --generate
 }
 ```
 
+## 🌐 Cross-Registry Support
+We support fetching skills from both our registry and **skills.sh**. If a skill isn't found in our database, we automatically attempt to resolve it through the industry-standard well-known registry path.
+
 ## ⚙️ Configuration
 
 Manage global CLI settings:
@@ -187,7 +199,11 @@ npx agentic-skills config edit
 
 ## 🌐 Web Interface
 
-Browse skills through a beautiful web interface:
+Browse skills through our beautiful web interface:
+
+👉 **[agenticskills.org](https://agenticskills.org)**
+
+Or run it locally:
 
 ```bash
 npx agentic-skills serve
