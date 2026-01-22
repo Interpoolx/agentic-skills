@@ -102,42 +102,125 @@ function downloadFile(url: string, destPath: string): Promise<void> {
 
 /**
  * Recursively download all files from a GitHub directory.
+ * Optimized with parallel downloads and progress reporting.
  */
 export async function downloadFromGitHub(
     apiUrl: string,
     targetDir: string,
-    onFile?: (filename: string) => void
+    onProgress?: (downloaded: number, total: number, lastFile: string) => void
 ): Promise<number> {
-    const entries = await fetchJson<GitHubEntry[]>(apiUrl);
-    let filesDownloaded = 0;
+    const allFiles: { url: string; path: string; name: string }[] = [];
 
-    if (!Array.isArray(entries)) {
-        // Single file, not a directory
-        const entry = entries as unknown as GitHubEntry;
-        if (entry.download_url) {
-            const destPath = path.join(targetDir, entry.name);
-            await downloadFile(entry.download_url, destPath);
-            onFile?.(entry.name);
-            return 1;
-        }
-        return 0;
+    const IGNORED_FILES = new Set([
+        '.ds_store',
+        'thumbs.db',
+        '.git',
+        '.github',
+        '.vscode',
+        '.idea',
+        'node_modules',
+        'package.json',
+        'package-lock.json',
+        'yarn.lock',
+        'pnpm-lock.yaml',
+        'bun.lockb',
+        '.gitignore',
+        '.npmrc',
+        'eslint.config.mjs',
+        'eslint.config.js',
+        '.eslintrc.js',
+        '.eslintrc.json',
+        '.prettierrc',
+        '.prettierrc.json',
+        '.prettierrc.js',
+        'tsconfig.json',
+        'sync-skills.sh',
+        'versions.json'
+    ]);
+
+    function shouldIgnore(name: string): boolean {
+        return IGNORED_FILES.has(name.toLowerCase());
     }
 
-    for (const entry of entries) {
-        if (entry.type === 'file' && entry.download_url) {
-            const destPath = path.join(targetDir, entry.name);
-            await downloadFile(entry.download_url, destPath);
-            onFile?.(entry.name);
-            filesDownloaded++;
-        } else if (entry.type === 'dir') {
-            // Recursively download subdirectory
-            const subDir = path.join(targetDir, entry.name);
-            const subCount = await downloadFromGitHub(entry.url, subDir, onFile);
-            filesDownloaded += subCount;
+    // 1. Collect all files recursively
+    async function collect(url: string, currentTargetDir: string) {
+        const entries = await fetchJson<GitHubEntry[] | { message: string }>(url);
+
+        if (!Array.isArray(entries)) {
+            // Check for rate limit or other API errors
+            const errorResponse = entries as { message: string };
+            if (errorResponse.message && errorResponse.message.includes('API rate limit')) {
+                throw new Error('GitHub API rate limit exceeded.\nTo increase limits, authenticate using:\n  • export GITHUB_TOKEN=your_token (Linux/Mac)\n  • set GITHUB_TOKEN=your_token (Windows)\n  • Or pass --token your_token to the command');
+            }
+
+            const entry = entries as unknown as GitHubEntry;
+            if (entry.download_url && !shouldIgnore(entry.name)) {
+                allFiles.push({
+                    url: entry.download_url,
+                    path: path.join(currentTargetDir, entry.name),
+                    name: entry.name
+                });
+            }
+            return;
+        }
+
+        for (const entry of entries) {
+            if (shouldIgnore(entry.name)) continue;
+
+            if (entry.type === 'file' && entry.download_url) {
+                allFiles.push({
+                    url: entry.download_url,
+                    path: path.join(currentTargetDir, entry.name),
+                    name: entry.name
+                });
+            } else if (entry.type === 'dir') {
+                await collect(entry.url, path.join(currentTargetDir, entry.name));
+            }
         }
     }
 
-    return filesDownloaded;
+    await collect(apiUrl, targetDir);
+
+    if (allFiles.length === 0) return 0;
+
+    // 2. Download files in parallel with concurrency limit
+    const CONCURRENCY_LIMIT = 5;
+    let downloadedCount = 0;
+    const totalCount = allFiles.length;
+
+    const downloadQueue = [...allFiles];
+    const workers = Array(Math.min(CONCURRENCY_LIMIT, totalCount)).fill(null).map(async () => {
+        while (downloadQueue.length > 0) {
+            const file = downloadQueue.shift();
+            if (!file) break;
+
+            await downloadFile(file.url, file.path);
+            downloadedCount++;
+            onProgress?.(downloadedCount, totalCount, file.name);
+        }
+    });
+
+    await Promise.all(workers);
+    return downloadedCount;
+}
+
+/**
+ * Fetch repository metadata (stars, forks, description)
+ */
+export async function getRepoMetadata(owner: string, repo: string) {
+    try {
+        const url = `https://api.github.com/repos/${owner}/${repo}`;
+        const data = await fetchJson<any>(url);
+        return {
+            stars: data.stargazers_count,
+            forks: data.forks_count,
+            description: data.description,
+            owner_name: data.owner.login,
+            repo_name: data.name
+        };
+    } catch (e) {
+        return null;
+    }
 }
 
 /**
@@ -147,21 +230,22 @@ export async function installSkillFromUrl(
     githubUrl: string,
     folderName: string,
     baseDir: string = '.',
-    options?: { cursor?: boolean; onFile?: (filename: string) => void }
+    options?: { cursor?: boolean; onProgress?: (downloaded: number, total: number, lastFile: string) => void }
 ): Promise<{ success: boolean; filesInstalled: number; targetDir: string }> {
     const parsed = parseGitHubUrl(githubUrl);
     if (!parsed) {
         throw new Error(`Invalid GitHub URL: ${githubUrl}`);
     }
 
-    // Install to .agent/skills/
-    const agentSkillsDir = path.join(baseDir, '.agent', 'skills', folderName);
-    const filesInstalled = await downloadFromGitHub(parsed.apiUrl, agentSkillsDir, options?.onFile);
+    // Install to the primary skills directory (e.g. .agent/skills or .claude/skills)
+    const agentSkillsDir = path.join(baseDir, 'skills', folderName);
+    const filesInstalled = await downloadFromGitHub(parsed.apiUrl, agentSkillsDir, options?.onProgress);
 
     // Optionally also install to .cursor/rules/
     if (options?.cursor) {
+        // Project-specific .cursor/rules logic
         const cursorDir = path.join(baseDir, '.cursor', 'rules', folderName);
-        await downloadFromGitHub(parsed.apiUrl, cursorDir);
+        await downloadFromGitHub(parsed.apiUrl, cursorDir, options?.onProgress);
     }
 
     return {
@@ -169,4 +253,41 @@ export async function installSkillFromUrl(
         filesInstalled,
         targetDir: agentSkillsDir,
     };
+}
+
+/**
+ * List all skills available in a GitHub repository.
+ * Searches for folders containing SKILL.md.
+ */
+export async function listSkillsInRepo(githubUrl: string): Promise<{ name: string; path: string; skillMdUrl: string }[]> {
+    const parsed = parseGitHubUrl(githubUrl);
+    if (!parsed) return [];
+
+    const skills: { name: string; path: string; skillMdUrl: string }[] = [];
+
+    async function scan(url: string) {
+        try {
+            const entries = await fetchJson<GitHubEntry[]>(url);
+            if (!Array.isArray(entries)) return;
+
+            for (const entry of entries) {
+                if (entry.type === 'file' && entry.name === 'SKILL.md') {
+                    // Found a skill! The name is the parent folder's name or repo name
+                    const dirName = path.dirname(entry.path) === '.' ? parsed?.repo : path.basename(path.dirname(entry.path));
+                    skills.push({
+                        name: dirName || '',
+                        path: path.dirname(entry.path),
+                        skillMdUrl: entry.download_url || ''
+                    });
+                } else if (entry.type === 'dir' && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+                    await scan(entry.url);
+                }
+            }
+        } catch (e) {
+            // Error scanning, ignore
+        }
+    }
+
+    await scan(parsed.apiUrl);
+    return skills;
 }

@@ -5,7 +5,7 @@ import { DataTable } from '../components/DataTable'
 import { RightDrawer } from '../components/RightDrawer'
 import { ConfirmationModal } from '../components/ConfirmationModal'
 import { EditorModal } from '../components/MarkdownEditorModal'
-import { getApiUrl } from '../lib/api-config'
+import { getApiUrl, getAdminToken } from '../lib/api-config'
 import { toast } from 'sonner'
 import type { ColumnDef } from '@tanstack/react-table'
 
@@ -77,7 +77,7 @@ function PrdsPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ralphy-default-admin-token'
+          'Authorization': `Bearer ${getAdminToken()}`
         },
         body: JSON.stringify({ content })
       });
@@ -110,7 +110,7 @@ function PrdsPage() {
         sort: sortBy,
       })
       const res = await fetch(`${getApiUrl()}/api/admin/prds?${params.toString()}`, {
-        headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+        headers: { 'Authorization': `Bearer ${getAdminToken()}` }
       })
       return res.json()
     }
@@ -141,7 +141,7 @@ function PrdsPage() {
     mutationFn: async (id: string) => {
       const res = await fetch(`${getApiUrl()}/api/admin/prds/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+        headers: { 'Authorization': `Bearer ${getAdminToken()}` }
       })
       if (!res.ok) throw new Error('Delete failed');
       return res.json();
@@ -162,7 +162,7 @@ function PrdsPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ralphy-default-admin-token'
+          'Authorization': `Bearer ${getAdminToken()}`
         },
         body: JSON.stringify({ ids })
       });
@@ -435,7 +435,7 @@ function PrdForm({ prd, onSuccess }: { prd: Prd | null; onSuccess: () => void })
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ralphy-default-admin-token'
+            'Authorization': `Bearer ${getAdminToken()}`
           },
           body: JSON.stringify({
             name: form.name,
@@ -461,7 +461,7 @@ function PrdForm({ prd, onSuccess }: { prd: Prd | null; onSuccess: () => void })
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ralphy-default-admin-token'
+            'Authorization': `Bearer ${getAdminToken()}`
           },
           body: JSON.stringify({
             prds: [{

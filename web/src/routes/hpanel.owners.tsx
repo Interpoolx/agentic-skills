@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { API_URL } from '../constants'
+import { getAdminToken } from '../lib/api-config'
 import { DataTable } from '../components/DataTable'
 import { ConfirmationModal } from '../components/ConfirmationModal'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -48,7 +49,7 @@ function OwnersPage() {
   function fetchOwners() {
     setLoading(true)
     fetch(`${API_URL}/api/admin/owners`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || 'ralphy-default-admin-token'}` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || getAdminToken()}` }
     })
       .then(res => res.json())
       .then(data => {
@@ -163,7 +164,7 @@ function OwnersPage() {
   function deleteOwner(id: string) {
     fetch(`${API_URL}/api/admin/owners/${id}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || 'ralphy-default-admin-token'}` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || getAdminToken()}` }
     })
       .then(res => res.json())
       .then(data => {
@@ -182,7 +183,7 @@ function OwnersPage() {
     try {
       const res = await fetch(`${API_URL}/api/admin/stats/recalculate`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || 'ralphy-default-admin-token'}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || getAdminToken()}` }
       })
       const data = await res.json()
       if (data.success) {
@@ -277,7 +278,7 @@ function OwnerModal({ owner, onClose, onSuccess }: { owner: Owner | null, onClos
       method,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('admin_token') || 'ralphy-default-admin-token'}`
+        'Authorization': `Bearer ${localStorage.getItem('admin_token') || getAdminToken()}`
       },
       body: JSON.stringify(formData)
     })

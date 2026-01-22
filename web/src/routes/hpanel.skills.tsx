@@ -5,7 +5,7 @@ import { DataTable } from '../components/DataTable'
 import { RightDrawer } from '../components/RightDrawer'
 import { ConfirmationModal } from '../components/ConfirmationModal'
 import { ValidationModal } from '../components/ValidationModal'
-import { getApiUrl } from '../lib/api-config'
+import { getApiUrl, getAdminToken } from '../lib/api-config'
 import { toast } from 'sonner'
 import type { ColumnDef } from '@tanstack/react-table'
 import { BRANDING } from '../web.config'
@@ -129,7 +129,7 @@ function SkillsPage() {
     mutationFn: async (id: string) => {
       const res = await fetch(`${getApiUrl()}/api/admin/skills/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+        headers: { 'Authorization': `Bearer ${getAdminToken()}` }
       })
       if (!res.ok) throw new Error('Delete failed');
       return res.json();
@@ -150,7 +150,7 @@ function SkillsPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${BRANDING.brand_lower_name}-default-admin-token`
+          'Authorization': `Bearer ${getAdminToken()}`
         },
         body: JSON.stringify({ ids })
       });
@@ -174,7 +174,7 @@ function SkillsPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${BRANDING.brand_lower_name}-default-admin-token`
+          'Authorization': `Bearer ${getAdminToken()}`
         },
         body: JSON.stringify({ is_featured: featured ? 1 : 0 })
       })
@@ -207,7 +207,7 @@ function SkillsPage() {
     try {
       const idsRes = await fetch(`${getApiUrl()}/api/admin/skills/ids`, {
         headers: {
-          'Authorization': `Bearer ${BRANDING.brand_lower_name}-default-admin-token`
+          'Authorization': `Bearer ${getAdminToken()}`
         }
       });
       const { ids } = await idsRes.json();
@@ -233,7 +233,7 @@ function SkillsPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${BRANDING.brand_lower_name}-default-admin-token`
+            'Authorization': `Bearer ${getAdminToken()}`
           },
           body: JSON.stringify({ ids: chunk })
         });

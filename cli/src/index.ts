@@ -6,23 +6,17 @@ import { installSkill } from './commands/install';
 import { listSkills } from './commands/list';
 import { updateSkills } from './commands/update';
 import { CLI_BRANDING } from './cli.config';
+import { showBanner } from './utils/banner';
+import pc from 'picocolors';
 
 const program = new Command();
-
-// ASCII Art Banner
-const banner = `
-${chalk.cyan('╔═══════════════════════════════════════════════════════════╗')}
-${chalk.cyan('║')}  ${chalk.bold.white(`🚀 ${CLI_BRANDING.brand_name}`)} ${chalk.gray('- Universal Skills Loader')}              ${chalk.cyan('║')}
-${chalk.cyan('║')}  ${chalk.gray('   The #1 CLI for AI Agent Skills Management')}         ${chalk.cyan('║')}
-${chalk.cyan('╚═══════════════════════════════════════════════════════════╝')}
-`;
 
 program
     .name(CLI_BRANDING.brand_lower_name)
     .description(`Universal Skills loader for AI Coding Agents - The #1 CLI for AI Agent Skills`)
-    .version('2.1.0')
+    .version('2.4.9')
     .hook('preAction', () => {
-        console.log(banner);
+        showBanner();
     });
 
 program

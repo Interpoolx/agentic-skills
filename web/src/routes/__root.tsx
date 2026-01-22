@@ -4,10 +4,12 @@ import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import { Toaster } from 'sonner'
 import { Footer } from '../components/Footer'
 import { useState } from 'react'
+import { NotFound } from '../components/NotFound'
 import { BRANDING } from '../web.config'
 
 export const Route = createRootRoute({
     component: RootComponent,
+    notFoundComponent: NotFound,
 })
 
 function RootComponent() {

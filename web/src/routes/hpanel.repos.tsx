@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { API_URL } from '../constants'
+import { getAdminToken } from '../lib/api-config'
 import { DataTable } from '../components/DataTable'
 import { ConfirmationModal } from '../components/ConfirmationModal'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -61,7 +62,7 @@ function ReposPage() {
       : `${API_URL}/api/admin/repos`
 
     fetch(url, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || 'ralphy-default-admin-token'}` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || getAdminToken()}` }
     })
       .then(res => res.json())
       .then(data => {
@@ -77,7 +78,7 @@ function ReposPage() {
 
   function fetchOwners() {
     fetch(`${API_URL}/api/admin/owners`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || 'ralphy-default-admin-token'}` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || getAdminToken()}` }
     })
       .then(res => res.json())
       .then(data => {
@@ -186,7 +187,7 @@ function ReposPage() {
   function deleteRepo(id: string) {
     fetch(`${API_URL}/api/admin/repos/${id}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || 'ralphy-default-admin-token'}` }
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || getAdminToken()}` }
     })
       .then(res => res.json())
       .then(data => {
@@ -205,7 +206,7 @@ function ReposPage() {
     try {
       const res = await fetch(`${API_URL}/api/admin/stats/recalculate`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || 'ralphy-default-admin-token'}` }
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('admin_token') || getAdminToken()}` }
       })
       const data = await res.json()
       if (data.success) {
@@ -313,7 +314,7 @@ function RepoModal({ repo, owners, onClose, onSuccess }: { repo: Repo | null, ow
       method,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('admin_token') || 'ralphy-default-admin-token'}`
+        'Authorization': `Bearer ${localStorage.getItem('admin_token') || getAdminToken()}`
       },
       body: JSON.stringify(formData)
     })

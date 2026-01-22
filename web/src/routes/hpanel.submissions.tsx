@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { API_URL } from '../constants'
+import { getAdminToken } from '../lib/api-config'
 import { toast } from 'sonner'
 
 export const Route = createFileRoute('/hpanel/submissions')({
@@ -33,7 +34,7 @@ function SubmissionsPage() {
         queryFn: async () => {
             // Use proper auth header
             const res = await fetch(`${API_URL}/api/admin/submissions`, {
-                headers: { 'Authorization': 'Bearer ralphy-default-admin-token' } // In real setup, getting token from store
+                headers: { 'Authorization': `Bearer ${getAdminToken()}` } // In real setup, getting token from store
             })
             if (!res.ok) throw new Error('Failed to fetch submissions')
             return res.json()
@@ -100,7 +101,7 @@ function SubmissionsPage() {
             const res = await fetch(`${API_URL}/api/admin/submissions/${selectedSubmission?.id}/approve`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': 'Bearer ralphy-default-admin-token',
+                    'Authorization': `Bearer ${getAdminToken()}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(data)
@@ -122,7 +123,7 @@ function SubmissionsPage() {
         mutationFn: async ({ id, notes }: { id: string, notes: string }) => {
             const res = await fetch(`${API_URL}/api/admin/submissions/${id}/reject`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ralphy-default-admin-token' },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getAdminToken()}` },
                 body: JSON.stringify({ notes })
             })
             if (!res.ok) throw new Error('Failed to reject')
@@ -141,7 +142,7 @@ function SubmissionsPage() {
         mutationFn: async (id: string) => {
             const res = await fetch(`${API_URL}/api/admin/submissions/${id}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+                headers: { 'Authorization': `Bearer ${getAdminToken()}` }
             })
             if (!res.ok) throw new Error('Failed to delete')
             return res.json()

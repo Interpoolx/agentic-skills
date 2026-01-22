@@ -91,28 +91,63 @@ function loadBundledRegistry(): SkillDefinition[] {
         const content = fs.readFileSync(registryPath, 'utf8');
         const parsed = JSON.parse(content);
         const rawSkills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
-        return mapRawSkills(rawSkills);
+        return mapSkills(rawSkills);
     }
     return [];
 }
 
 /**
- * Maps raw skills from marketplace.json to SkillDefinition
+ * Map a single raw skill to SkillDefinition
  */
-function mapRawSkills(rawSkills: any[]): SkillDefinition[] {
-    return rawSkills.map(item => ({
+function mapSkill(item: any): SkillDefinition {
+    // Construct the most accurate URL possible.
+    // If we have a githubUrl and a skill_file (path), we should point to the folder.
+    let targetUrl = item.url || item.githubUrl || item.github_url || item.source || '';
+    const skillPath = item.skillFile || item.skill_file || item.skill_md_url || '';
+
+    if (targetUrl.includes('github.com') && skillPath && !skillPath.startsWith('http')) {
+        // Remove trailing slash if any
+        targetUrl = targetUrl.replace(/\/$/, '');
+
+        // Remove .git if present
+        targetUrl = targetUrl.replace(/\.git$/, '');
+
+        // Construct a proper tree URL if it's not already one
+        if (!targetUrl.includes('/tree/')) {
+            const branch = item.branch || 'main';
+            targetUrl = `${targetUrl}/tree/${branch}`;
+        }
+
+        // Get the directory of the SKILL.md
+        const dir = path.dirname(skillPath);
+        if (dir !== '.') {
+            targetUrl = `${targetUrl}/${dir}`;
+        }
+    } else if (!targetUrl && skillPath.startsWith('http')) {
+        targetUrl = skillPath;
+    }
+
+    return {
         id: item.id || '',
         name: item.name || '',
-        url: item.skill_file || item.url || '',
-        description: item.short_description || item.description || '',
-        folder_name: item.slug || item.folder_name || item.id || '',
-        slug: item.slug,
-        skill_file: item.skill_file,
-        short_description: item.short_description,
+        url: targetUrl,
+        description: item.description || item.short_description || item.shortDescription || item.fullDescription || '',
+        folder_name: item.folder_name || item.slug || item.skill_slug || item.id || '',
+        slug: item.slug || item.skill_slug,
+        skill_file: skillPath,
+        short_description: item.shortDescription || item.short_description,
         category: item.category,
-        tags: item.tags,
-        source: 'registry'
-    }));
+        tags: Array.isArray(item.tags) ? item.tags : (typeof item.tags === 'string' ? JSON.parse(item.tags) : []),
+        source: item.source || 'registry',
+        recommended: item.recommended || item.isFeatured || item.is_featured
+    };
+}
+
+/**
+ * Maps multiple raw skills to SkillDefinition
+ */
+function mapSkills(rawSkills: any[]): SkillDefinition[] {
+    return rawSkills.map(mapSkill);
 }
 
 /**
@@ -158,7 +193,7 @@ function fetchRemoteRegistry(): Promise<SkillDefinition[]> {
                     const parsed = JSON.parse(data);
                     // Handle both array and { skills: [...] } formats
                     const rawSkills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
-                    resolve(mapRawSkills(rawSkills));
+                    resolve(mapSkills(rawSkills));
                 } catch (e) {
                     reject(e);
                 }
@@ -182,7 +217,8 @@ export async function findSkill(query: string): Promise<SkillDefinition | undefi
     try {
         const res = await fetch(`${REGISTRY_API_URL}/skills/${lowerQuery}`);
         if (res.ok) {
-            return await res.json() as SkillDefinition;
+            const data = await res.json();
+            return mapSkill(data);
         }
         // If 404, might be a search query not an ID, proceed to search or local
     } catch (e) {
@@ -242,9 +278,9 @@ export async function searchRegistry(query: string): Promise<SkillDefinition[]> 
         // limit=50 for CLI search
         const res = await fetch(`${REGISTRY_API_URL}/search?q=${encodeURIComponent(query)}&limit=50`);
         if (res.ok) {
-            const data = (await res.json()) as { skills?: SkillDefinition[] };
+            const data = (await res.json()) as { skills?: any[] };
             if (data.skills) {
-                return data.skills as SkillDefinition[];
+                return mapSkills(data.skills);
             }
         }
     } catch (e) {
@@ -264,9 +300,34 @@ export async function searchRegistry(query: string): Promise<SkillDefinition[]> 
 }
 
 /**
- * Get all possible skill locations.
+ * Find the project root by looking for .git or package.json
  */
-export function getSkillLocations(baseDir: string = '.'): { name: string; path: string }[] {
+export function findProjectRoot(startDir: string = process.cwd()): string {
+    let current = path.resolve(startDir);
+    const root = path.parse(current).root;
+
+    // 1. Prioritize .git (Workspace Root)
+    let gitSearch = current;
+    while (gitSearch !== root) {
+        if (fs.existsSync(path.join(gitSearch, '.git'))) {
+            return gitSearch;
+        }
+        gitSearch = path.dirname(gitSearch);
+    }
+
+    // 2. Fallback to package.json (Project Root)
+    let pkgSearch = current;
+    while (pkgSearch !== root) {
+        if (fs.existsSync(path.join(pkgSearch, 'package.json'))) {
+            return pkgSearch;
+        }
+        pkgSearch = path.dirname(pkgSearch);
+    }
+
+    return path.resolve(startDir);
+}
+
+export function getSkillLocations(baseDir: string = findProjectRoot()): { name: string; path: string }[] {
     return [
         { name: 'Universal', path: path.resolve(baseDir, '.agent', 'skills') },
         { name: 'Claude', path: path.resolve(baseDir, '.claude', 'skills') },

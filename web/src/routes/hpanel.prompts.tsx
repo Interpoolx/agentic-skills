@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../components/DataTable'
 import { RightDrawer } from '../components/RightDrawer'
 import { ConfirmationModal } from '../components/ConfirmationModal'
-import { getApiUrl } from '../lib/api-config'
+import { getApiUrl, getAdminToken } from '../lib/api-config'
 import { toast } from 'sonner'
 import type { ColumnDef } from '@tanstack/react-table'
 
@@ -72,7 +72,7 @@ function PromptsAdminPage() {
     queryKey: ['admin-prompts', pagination, searchQuery, categoryFilter, typeFilter, statusFilter, sortBy],
     queryFn: async () => {
       const res = await fetch(`${getApiUrl()}/api/admin/prompts`, {
-        headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+        headers: { 'Authorization': `Bearer ${getAdminToken()}` }
       })
       return res.json()
     }
@@ -109,7 +109,7 @@ function PromptsAdminPage() {
     mutationFn: async (id: string) => {
       const res = await fetch(`${getApiUrl()}/api/admin/prompts/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+        headers: { 'Authorization': `Bearer ${getAdminToken()}` }
       })
       if (!res.ok) throw new Error('Delete failed');
       return res.json();
@@ -130,7 +130,7 @@ function PromptsAdminPage() {
       for (const id of ids) {
         await fetch(`${getApiUrl()}/api/admin/prompts/${id}`, {
           method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+          headers: { 'Authorization': `Bearer ${getAdminToken()}` }
         });
       }
       return { count: ids.length };
@@ -435,7 +435,7 @@ function PromptForm({ prompt, onSuccess }: { prompt: Prompt | null; onSuccess: (
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ralphy-default-admin-token'
+            'Authorization': `Bearer ${getAdminToken()}`
           },
           body: JSON.stringify({
             title: form.title,

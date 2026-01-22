@@ -52,7 +52,7 @@ export async function updateSkills(options: UpdateOptions): Promise<void> {
 
         try {
             await installSkillFromUrl(registrySkill.url, registrySkill.folder_name, '.', {
-                onFile: () => { }, // Silent
+                onProgress: () => { }, // Silent
             });
             console.log(chalk.green(`  ✓ ${registrySkill.name} updated`));
             successCount++;

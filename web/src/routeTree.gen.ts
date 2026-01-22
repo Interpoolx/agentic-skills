@@ -38,6 +38,7 @@ import { Route as DocsIntegrateRouteImport } from './routes/docs.integrate'
 import { Route as DocsCreateRouteImport } from './routes/docs.create'
 import { Route as SkillsOwnerIndexRouteImport } from './routes/skills.$owner.index'
 import { Route as SkillsLegacySkillIdRouteImport } from './routes/skills.legacy.$skillId'
+import { Route as HpanelSkillGithubExtractorRouteImport } from './routes/hpanel.skill.github-extractor'
 import { Route as SkillsOwnerRepoIndexRouteImport } from './routes/skills.$owner.$repo.index'
 import { Route as SkillsOwnerRepoSkillSlugRouteImport } from './routes/skills.$owner.$repo.$skillSlug'
 
@@ -186,6 +187,12 @@ const SkillsLegacySkillIdRoute = SkillsLegacySkillIdRouteImport.update({
   path: '/skills/legacy/$skillId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HpanelSkillGithubExtractorRoute =
+  HpanelSkillGithubExtractorRouteImport.update({
+    id: '/skill/github-extractor',
+    path: '/skill/github-extractor',
+    getParentRoute: () => HpanelRoute,
+  } as any)
 const SkillsOwnerRepoIndexRoute = SkillsOwnerRepoIndexRouteImport.update({
   id: '/skills/$owner/$repo/',
   path: '/skills/$owner/$repo/',
@@ -226,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/docs/': typeof DocsIndexRoute
   '/hpanel/': typeof HpanelIndexRoute
   '/skills/': typeof SkillsIndexRoute
+  '/hpanel/skill/github-extractor': typeof HpanelSkillGithubExtractorRoute
   '/skills/legacy/$skillId': typeof SkillsLegacySkillIdRoute
   '/skills/$owner/': typeof SkillsOwnerIndexRoute
   '/skills/$owner/$repo/$skillSlug': typeof SkillsOwnerRepoSkillSlugRoute
@@ -258,6 +266,7 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsIndexRoute
   '/hpanel': typeof HpanelIndexRoute
   '/skills': typeof SkillsIndexRoute
+  '/hpanel/skill/github-extractor': typeof HpanelSkillGithubExtractorRoute
   '/skills/legacy/$skillId': typeof SkillsLegacySkillIdRoute
   '/skills/$owner': typeof SkillsOwnerIndexRoute
   '/skills/$owner/$repo/$skillSlug': typeof SkillsOwnerRepoSkillSlugRoute
@@ -292,6 +301,7 @@ export interface FileRoutesById {
   '/docs/': typeof DocsIndexRoute
   '/hpanel/': typeof HpanelIndexRoute
   '/skills/': typeof SkillsIndexRoute
+  '/hpanel/skill/github-extractor': typeof HpanelSkillGithubExtractorRoute
   '/skills/legacy/$skillId': typeof SkillsLegacySkillIdRoute
   '/skills/$owner/': typeof SkillsOwnerIndexRoute
   '/skills/$owner/$repo/$skillSlug': typeof SkillsOwnerRepoSkillSlugRoute
@@ -327,6 +337,7 @@ export interface FileRouteTypes {
     | '/docs/'
     | '/hpanel/'
     | '/skills/'
+    | '/hpanel/skill/github-extractor'
     | '/skills/legacy/$skillId'
     | '/skills/$owner/'
     | '/skills/$owner/$repo/$skillSlug'
@@ -359,6 +370,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/hpanel'
     | '/skills'
+    | '/hpanel/skill/github-extractor'
     | '/skills/legacy/$skillId'
     | '/skills/$owner'
     | '/skills/$owner/$repo/$skillSlug'
@@ -392,6 +404,7 @@ export interface FileRouteTypes {
     | '/docs/'
     | '/hpanel/'
     | '/skills/'
+    | '/hpanel/skill/github-extractor'
     | '/skills/legacy/$skillId'
     | '/skills/$owner/'
     | '/skills/$owner/$repo/$skillSlug'
@@ -623,6 +636,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SkillsLegacySkillIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/hpanel/skill/github-extractor': {
+      id: '/hpanel/skill/github-extractor'
+      path: '/skill/github-extractor'
+      fullPath: '/hpanel/skill/github-extractor'
+      preLoaderRoute: typeof HpanelSkillGithubExtractorRouteImport
+      parentRoute: typeof HpanelRoute
+    }
     '/skills/$owner/$repo/': {
       id: '/skills/$owner/$repo/'
       path: '/skills/$owner/$repo'
@@ -655,6 +675,7 @@ interface HpanelRouteChildren {
   HpanelSkillsRoute: typeof HpanelSkillsRoute
   HpanelSubmissionsRoute: typeof HpanelSubmissionsRoute
   HpanelIndexRoute: typeof HpanelIndexRoute
+  HpanelSkillGithubExtractorRoute: typeof HpanelSkillGithubExtractorRoute
 }
 
 const HpanelRouteChildren: HpanelRouteChildren = {
@@ -672,6 +693,7 @@ const HpanelRouteChildren: HpanelRouteChildren = {
   HpanelSkillsRoute: HpanelSkillsRoute,
   HpanelSubmissionsRoute: HpanelSubmissionsRoute,
   HpanelIndexRoute: HpanelIndexRoute,
+  HpanelSkillGithubExtractorRoute: HpanelSkillGithubExtractorRoute,
 }
 
 const HpanelRouteWithChildren =

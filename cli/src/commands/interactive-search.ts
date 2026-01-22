@@ -41,7 +41,7 @@ export async function interactiveSearch(initialQuery?: string, options: SearchOp
 
     // Search for skills in our registry
     const spinner = p.spinner();
-    spinner.start(`Searching for "${query}"...`);
+    spinner.start(`Searching agenticskills.org for "${query}"...`);
 
     let results: SkillDefinition[] = [];
 
@@ -205,7 +205,7 @@ function showGoodbye(): void {
  * Non-interactive search - just display results
  */
 export async function searchSkillsSimple(query: string, options: SearchOptions = {}): Promise<void> {
-    console.log(pc.cyan(`\n🔍 Searching for "${query}"...\n`));
+    console.log(pc.cyan(`\n🔍 Searching agenticskills.org for "${query}"...\n`));
 
     try {
         let results: SkillDefinition[] = await searchRegistry(query);
@@ -229,6 +229,7 @@ export async function searchSkillsSimple(query: string, options: SearchOptions =
             if (skill.description) {
                 console.log(pc.dim(`    ${skill.description.substring(0, 70)}${skill.description.length > 70 ? '...' : ''}`));
             }
+            console.log(pc.gray(`    Command: `) + pc.cyan(`npx ${CLI_BRANDING.brand_lower_name} add ${skill.id}`));
             console.log('');
         });
 

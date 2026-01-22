@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../components/DataTable'
 import { RightDrawer } from '../components/RightDrawer'
-import { getApiUrl } from '../lib/api-config'
+import { getApiUrl, getAdminToken } from '../lib/api-config'
 import type { ColumnDef } from '@tanstack/react-table'
 
 export const Route = createFileRoute('/hpanel/categories')({
@@ -57,7 +57,10 @@ function CategoriesPage() {
             for (const skill of skillsInCategory) {
                 await fetch(`${getApiUrl()}/api/admin/skills/${skill.id}`, {
                     method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAdminToken()}`
+                    },
                     body: JSON.stringify({ category: newName })
                 })
             }
@@ -70,7 +73,10 @@ function CategoriesPage() {
         mutationFn: async (categoryName: string) => {
             const skillsInCategory = skillsData?.filter((s: any) => s.category === categoryName) || []
             for (const skill of skillsInCategory) {
-                await fetch(`${getApiUrl()}/api/admin/skills/${skill.id}`, { method: 'DELETE' })
+                await fetch(`${getApiUrl()}/api/admin/skills/${skill.id}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+                })
             }
         },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] })

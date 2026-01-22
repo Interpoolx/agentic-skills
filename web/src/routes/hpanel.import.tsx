@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { getApiUrl, getAdminToken } from '../lib/api-config'
 import { BRANDING } from '../web.config'
 import { useState } from 'react'
 
@@ -6,7 +7,7 @@ export const Route = createFileRoute('/hpanel/import')({
     component: ImportPage,
 })
 
-const API_URL = 'http://localhost:8787'
+
 
 function ImportPage() {
     const [importing, setImporting] = useState<string | null>(null)
@@ -29,9 +30,12 @@ function ImportPage() {
                 skills = data.skills || []
             }
 
-            const importRes = await fetch(`${API_URL}/api/admin/import`, {
+            const importRes = await fetch(`${getApiUrl()}/api/admin/import`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getAdminToken()}`
+                },
                 body: JSON.stringify({ skills })
             })
 

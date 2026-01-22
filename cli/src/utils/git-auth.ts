@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as os from 'os';
 import chalk from 'chalk';
 import { parseGitHubUrl } from './downloader';
+import * as p from '@clack/prompts';
+import pc from 'picocolors';
 
 /**
  * Git Authentication Manager for private repositories
@@ -149,88 +151,72 @@ export function loadGitHubToken(): string | null {
  * Interactive GitHub authentication prompt
  */
 export async function promptForGitAuth(): Promise<GitAuthOptions | null> {
-    const { promptUser } = await import('./prompt');
+    const authMethod = await p.select({
+        message: 'Select authentication method for private repository:',
+        options: [
+            { label: '🔑 GitHub Personal Access Token (Recommended)', value: 'token' },
+            { label: '🔐 SSH Key', value: 'ssh' },
+            { label: '👤 Username & Password', value: 'basic' }
+        ]
+    });
 
-    const { authMethod } = await promptUser([
-        {
-            type: 'list',
-            name: 'authMethod',
-            message: 'Select authentication method for private repository:',
-            choices: [
-                { name: '🔑 GitHub Personal Access Token (Recommended)', value: 'token' },
-                { name: '🔐 SSH Key', value: 'ssh' },
-                { name: '👤 Username & Password', value: 'basic' },
-                { name: '❌ Cancel', value: 'cancel' }
-            ]
-        }
-    ]);
-
-    if (authMethod === 'cancel') {
+    if (p.isCancel(authMethod)) {
         return null;
     }
 
     switch (authMethod) {
         case 'token':
-            const { token } = await promptUser([
-                {
-                    type: 'password',
-                    name: 'token',
-                    message: 'Enter your GitHub Personal Access Token:',
-                    validate: (input: string) => {
-                        if (!input || input.length < 40) {
-                            return 'Token should be at least 40 characters long';
-                        }
-                        return true;
+            const token = await p.password({
+                message: 'Enter your GitHub Personal Access Token:',
+                validate: (input: string) => {
+                    if (!input || input.length < 40) {
+                        return 'Token should be at least 40 characters long';
                     }
                 }
-            ]);
+            });
+
+            if (p.isCancel(token)) return null;
 
             // Save token to environment for this session
-            process.env.GITHUB_TOKEN = token;
-            return { token };
+            process.env.GITHUB_TOKEN = token as string;
+            return { token: token as string };
 
         case 'ssh':
             const { hasKey } = checkForSSHKeys();
             if (!hasKey) {
-                console.log(chalk.yellow('\n⚠️  No SSH keys found in ~/.ssh/'));
-                console.log(chalk.gray('Generate an SSH key with: ssh-keygen -t ed25519 -C "your-email@example.com"'));
+                p.log.warn('No SSH keys found in ~/.ssh/');
+                p.log.info('Generate an SSH key with: ssh-keygen -t ed25519 -C "your-email@example.com"');
                 return null;
             }
 
-            const { sshPassphrase } = await promptUser([
-                {
-                    type: 'password',
-                    name: 'sshPassphrase',
-                    message: 'Enter SSH key passphrase (leave empty if no passphrase):',
-                    mask: '*'
-                }
-            ]);
+            const sshPassphrase = await p.password({
+                message: 'Enter SSH key passphrase (leave empty if no passphrase):'
+            });
 
-            return { sshPassphrase: sshPassphrase || undefined };
+            if (p.isCancel(sshPassphrase)) return null;
+
+            return { sshPassphrase: (sshPassphrase as string) || undefined };
 
         case 'basic':
-            const { username, password } = await promptUser([
-                {
-                    type: 'input',
-                    name: 'username',
-                    message: 'Enter your GitHub username:',
-                    validate: (input: string) => {
-                        if (!input) return 'Username is required';
-                        return true;
-                    }
-                },
-                {
-                    type: 'password',
-                    name: 'password',
-                    message: 'Enter your GitHub password (or personal access token):',
-                    validate: (input: string) => {
-                        if (!input) return 'Password/token is required';
-                        return true;
-                    }
+            const username = await p.text({
+                message: 'Enter your GitHub username:',
+                validate: (input: string) => {
+                    if (!input) return 'Username is required';
                 }
-            ]);
+            });
 
-            return { username, password };
+            if (p.isCancel(username)) return null;
+
+            const password = await p.password({
+                message: 'Enter your GitHub password (or personal access token):',
+                validate: (input: string) => {
+                    if (!input) return 'Password/token is required';
+                }
+            });
+
+            if (p.isCancel(password)) return null;
+
+            return { username: username as string, password: password as string };
 
         default:
             return null;

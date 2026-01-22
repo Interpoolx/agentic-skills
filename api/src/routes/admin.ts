@@ -16,7 +16,7 @@ const app = new Hono<{ Bindings: Env }>()
 export const adminRouter = app
 
 app.use('/api/admin/*', async (c, next) => {
-    const adminToken = c.env.RALPHY_ADMIN_TOKEN || 'ralphy-default-admin-token'
+    const adminToken = c.env.RALPHY_ADMIN_TOKEN || 'agentic-skills-default-admin-token'
     const authHeader = c.req.header('Authorization')
 
     if (authHeader !== `Bearer ${adminToken}`) {

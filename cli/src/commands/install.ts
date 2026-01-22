@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import chalk from 'chalk';
-import { findSkill, loadRegistry, isSkillInstalled } from '../utils/registry';
-import { installSkillFromUrl, parseGitHubUrl } from '../utils/downloader';
+import { findSkill, loadRegistry, isSkillInstalled, findProjectRoot } from '../utils/registry';
+import { installSkillFromUrl, parseGitHubUrl, listSkillsInRepo } from '../utils/downloader';
 import {
     parseGitHubAuthUrl,
     loadGitHubToken,
@@ -13,6 +13,10 @@ import {
     PrivateRepoConfig
 } from '../utils/git-auth';
 import { CLI_BRANDING } from '../cli.config';
+import * as p from '@clack/prompts';
+import pc from 'picocolors';
+import { showBanner } from '../utils/banner';
+import { detectInstalledAgents } from '../utils/agent-detector';
 
 interface InstallOptions {
     dir?: string;
@@ -25,41 +29,200 @@ interface InstallOptions {
     sshKey?: string;
     private?: boolean;
     native?: boolean;
+    skill?: string;
 }
 
 /**
  * Install a skill by name, GitHub URL, or local path.
  */
 export async function installSkill(skillNameOrUrl: string, options: InstallOptions): Promise<void> {
+    if (!options.yes) {
+        return runInteractiveInstall(skillNameOrUrl, options);
+    }
+
+    try {
+        const isUrl = skillNameOrUrl.includes('github.com') || skillNameOrUrl.startsWith('http');
+        const isLocalPath = !isUrl && (skillNameOrUrl.startsWith('.') || skillNameOrUrl.startsWith('/') || skillNameOrUrl.includes('\\'));
+
+        // Determine target directory
+        const projectRoot = findProjectRoot();
+        let targetBaseDir = projectRoot;
+
+        if (options.global) {
+            targetBaseDir = path.join(os.homedir(), `.${CLI_BRANDING.brand_lower_name}`);
+        } else if (options.universal) {
+            targetBaseDir = path.join(projectRoot, '.agent');
+        } else {
+            // Default to project-local (.claude/skills or .agent/skills)
+            targetBaseDir = fs.existsSync(path.join(projectRoot, '.agent'))
+                ? path.join(projectRoot, '.agent')
+                : path.join(projectRoot, '.claude');
+        }
+
+        const skillsDir = path.join(targetBaseDir, 'skills');
+
+        if (isLocalPath) {
+            await installFromLocal(skillNameOrUrl, skillsDir, options);
+        } else if (isUrl) {
+            await installFromUrl(skillNameOrUrl, skillsDir, options);
+        } else {
+            await installFromRegistry(skillNameOrUrl, skillsDir, options);
+        }
+
+        // NEW: Handle native install if requested
+        if (options.native) {
+            console.log(chalk.cyan('\n🚀 Performing native install to AI agents...'));
+            const { exportToAgents } = await import('./export-agents');
+            await exportToAgents({ all: true, yes: true });
+        }
+    } catch (err: any) {
+        console.error(chalk.red(`\n❌ Installation failed: ${err instanceof Error ? err.message : String(err)}`));
+        process.exit(1);
+    }
+}
+
+/**
+ * Interactive onboarding flow for installation.
+ */
+async function runInteractiveInstall(skillNameOrUrl: string, options: InstallOptions): Promise<void> {
+    p.intro(pc.cyan(pc.bold(`Installing Skill: ${skillNameOrUrl}`)));
+
     const isUrl = skillNameOrUrl.includes('github.com') || skillNameOrUrl.startsWith('http');
-    const isLocalPath = !isUrl && (skillNameOrUrl.startsWith('.') || skillNameOrUrl.startsWith('/') || skillNameOrUrl.includes('\\'));
+    let finalInstallUrl = skillNameOrUrl;
 
-    // Determine target directory
-    let targetBaseDir = '.';
-    if (options.global) {
-        targetBaseDir = path.join(os.homedir(), `.${CLI_BRANDING.brand_lower_name}`);
-    } else if (options.universal) {
-        targetBaseDir = path.resolve('.agent');
-    } else {
-        // Default to project-local (.claude/skills or .agent/skills)
-        targetBaseDir = fs.existsSync('.agent') ? '.agent' : '.claude';
+    if (isUrl && !options.skill) {
+        const spinner = p.spinner();
+        spinner.start('Scanning repository for skills...');
+        const repoSkills = await listSkillsInRepo(skillNameOrUrl);
+
+        if (repoSkills.length > 0) {
+            spinner.stop(`Found ${repoSkills.length} skill(s) in repository`);
+
+            if (repoSkills.length === 1) {
+                p.log.info(`Found skill: ${pc.bold(repoSkills[0].name)}`);
+            } else {
+                const selectedPaths = await p.multiselect({
+                    message: 'Select skills to install:',
+                    options: repoSkills.map(s => ({
+                        value: s.path,
+                        label: pc.bold(s.name),
+                        hint: `path: ${s.path}`
+                    })),
+                    required: true
+                });
+
+                if (p.isCancel(selectedPaths)) {
+                    p.cancel('Installation cancelled');
+                    return;
+                }
+
+                // For simplicity in this flow, we'll install one by one or 
+                // handle the first one and notify user. 
+                // Industry standard usually handles the primary one or prompts.
+                // We'll update finalInstallUrl for the first selected and process.
+                const firstSkill = repoSkills.find(s => s.path === (selectedPaths as string[])[0]);
+                if (firstSkill) {
+                    const parsed = parseGitHubUrl(skillNameOrUrl);
+                    if (parsed) {
+                        finalInstallUrl = `https://github.com/${parsed.owner}/${parsed.repo}/tree/${parsed.branch}/${firstSkill.path}`;
+                    }
+                }
+            }
+        } else {
+            spinner.stop('No skills found in root directory.');
+        }
     }
 
-    const skillsDir = options.global ? path.join(targetBaseDir, 'skills') : path.join(targetBaseDir, 'skills');
+    // Detect agents
+    const projectRoot = findProjectRoot();
+    const detection = detectInstalledAgents(projectRoot);
+    const detectedAgents = detection.agents.filter(a => a.detected);
 
-    if (isLocalPath) {
-        await installFromLocal(skillNameOrUrl, skillsDir, options);
-    } else if (isUrl) {
-        await installFromUrl(skillNameOrUrl, skillsDir, options);
+    if (detectedAgents.length === 0) {
+        p.log.warn('No AI agents detected on your system.');
     } else {
-        await installFromRegistry(skillNameOrUrl, skillsDir, options);
+        p.log.info(pc.dim(`Detected ${detectedAgents.length} agents: ${detectedAgents.map(a => a.name).join(', ')}`));
     }
 
-    // NEW: Handle native install if requested
-    if (options.native) {
-        console.log(chalk.cyan('\n🚀 Performing native install to AI agents...'));
-        const { exportToAgents } = await import('./export-agents');
-        await exportToAgents({ all: true, yes: true });
+    // 1. Select agents to install to
+    const agentTargets = await p.multiselect({
+        message: 'Select agents to install skills to:',
+        options: [
+            { value: 'universal', label: 'Universal (.agent/skills)', hint: 'Single source of truth (recommended)' },
+            ...detectedAgents.map(a => ({
+                value: a.id,
+                label: `${a.icon} ${a.name}`,
+                hint: a.skillsPath
+            }))
+        ],
+        required: true,
+        initialValues: ['universal']
+    });
+
+    if (p.isCancel(agentTargets)) {
+        p.cancel('Installation cancelled');
+        return;
+    }
+
+    // 2. Installation scope
+    const scope = await p.select({
+        message: 'Installation scope',
+        options: [
+            { value: 'project', label: 'Project', hint: 'Current directory' },
+            { value: 'global', label: 'Global', hint: `~/.${CLI_BRANDING.brand_lower_name}/skills` }
+        ]
+    });
+
+    if (p.isCancel(scope)) {
+        p.cancel('Installation cancelled');
+        return;
+    }
+
+    // 3. Installation method
+    const method = await p.select({
+        message: 'Installation method',
+        options: [
+            { value: 'symlink', label: pc.green('Symlink (Recommended)'), hint: 'Single source of truth, easy updates' },
+            { value: 'copy', label: 'Copy to all agents' }
+        ]
+    });
+
+    if (p.isCancel(method)) {
+        p.cancel('Installation cancelled');
+        return;
+    }
+
+    // Final confirmation
+    const confirm = await p.confirm({
+        message: 'Proceed with installation?',
+        initialValue: true
+    });
+
+    if (p.isCancel(confirm) || !confirm) {
+        p.cancel('Installation cancelled');
+        return;
+    }
+
+    const spinner = p.spinner();
+    spinner.start('Installing...');
+
+    try {
+        const finalOptions: InstallOptions = {
+            ...options,
+            yes: true,
+            universal: (agentTargets as string[]).includes('universal'),
+            global: scope === 'global',
+            symlink: method === 'symlink',
+            native: (agentTargets as string[]).some(t => t !== 'universal')
+        };
+
+        // If universal is NOT selected but other agents are, we need to pick a base directory
+        await installSkill(finalInstallUrl, finalOptions);
+
+        spinner.stop(pc.green('✅ Installation complete!'));
+        p.outro(pc.cyan(pc.bold('Done! Happy coding! ◝(ᵔᵕᵔ)◜')));
+    } catch (err: any) {
+        spinner.stop(pc.red(`❌ Installation failed: ${err instanceof Error ? err.message : String(err)}`));
     }
 }
 
@@ -115,33 +278,61 @@ async function installFromUrl(url: string, skillsDir: string, options: InstallOp
 
     const folderName = generateFolderName(parsed.owner, parsed.repo, parsed.pathInRepo);
 
-    console.log(chalk.gray(`Installing from URL: ${url}`));
+    // If no pathInRepo, try to find a 'skills' folder or the first skill
+    let finalUrl = url;
+    if (!parsed.pathInRepo) {
+        const repoSkills = await listSkillsInRepo(url);
+        if (repoSkills.length > 0) {
+            // Pick the first one for non-interactive or the one in 'skills/'
+            const preferred = repoSkills.find(s => s.path.startsWith('skills/')) || repoSkills[0];
+            finalUrl = `https://github.com/${parsed.owner}/${parsed.repo}/tree/${parsed.branch}/${preferred.path}`;
+            console.log(chalk.gray(`Auto-detected skill in: ${preferred.path}`));
+        }
+    }
+
+    console.log(chalk.gray(`Installing from URL: ${finalUrl}`));
 
     // Setup authentication if provided
     if (auth) {
         setupGitEnvironment(auth);
     }
 
-    const result = await installSkillFromUrl(url, folderName, path.dirname(skillsDir), {
+    const spinner = p.spinner();
+    spinner.start(`Downloading ${folderName}...`);
+
+    const result = await installSkillFromUrl(finalUrl, folderName, path.dirname(skillsDir), {
         cursor: options.cursor,
-        onFile: (filename) => console.log(chalk.gray(`  └─ ${filename}`)),
+        onProgress: (downloaded, total, lastFile) => {
+            spinner.message(pc.dim(`[${downloaded}/${total}] ${lastFile}`));
+        },
     });
 
-    console.log(chalk.green(`\n✅ Installed: ${folderName}`));
+    spinner.stop(pc.green(`✅ Installed: ${folderName}`));
 }
 
 async function installFromRegistry(name: string, skillsDir: string, options: InstallOptions) {
-    console.log(chalk.gray(`Searching registry for: ${name}...`));
-    const skill = await findSkill(name);
+    p.log.step(pc.dim('Searching agenticskills.org marketplace...'));
+    let skill = await findSkill(name);
 
     if (!skill) {
-        console.log(chalk.red(`✗ Skill "${name}" not found in registry`));
-        console.log(chalk.gray(`Try searching with: npx ${CLI_BRANDING.brand_lower_name} search <query>`));
+        p.log.step(pc.dim('Searching universal skills directory (skills.sh)...'));
+        // findSkill already checks skills.sh as a fallback
+        // we might want to split findSkill or just leave it if it works
+    }
+
+    if (!skill) {
+        p.log.warn(`Skill "${name}" not found in registries.`);
+        p.log.step(pc.cyan('Attempting Universal Resolution (GitHub Scan)...'));
+
+        // If it's just a name, we can't really scan GitHub without an owner/repo
+        // but we can suggest searching or using a URL
+        p.log.info(pc.dim(`Tip: Use a GitHub URL or owner/repo format for direct scanning.`));
+        p.log.info(pc.dim(`Example: npx ${CLI_BRANDING.brand_lower_name} add remotion-dev/skills`));
         process.exit(1);
     }
 
-    console.log(chalk.gray(`Found: ${skill.name}`));
-    console.log(chalk.gray(`Installing from: ${skill.url}`));
+    p.log.info(pc.green(`Found ${pc.bold(skill.name)} in ${skill.source || 'registry'}`));
+    p.log.step(pc.dim(`Installing from: ${skill.url}`));
 
     // Check if the registry skill URL requires authentication
     let auth: GitAuthOptions | undefined;
@@ -154,12 +345,24 @@ async function installFromRegistry(name: string, skillsDir: string, options: Ins
         setupGitEnvironment(auth);
     }
 
-    await installSkillFromUrl(skill.url, skill.folder_name, path.dirname(skillsDir), {
+    const spinner = p.spinner();
+    spinner.start(`Downloading ${skill.name}...`);
+
+    // Group by Repository Name (e.g. nuxt-skills/nuxthub)
+    let targetFolder = skill.folder_name;
+    const parsed = parseGitHubUrl(skill.url);
+    if (parsed && parsed.repo) {
+        targetFolder = path.join(parsed.repo, skill.folder_name);
+    }
+
+    await installSkillFromUrl(skill.url, targetFolder, path.dirname(skillsDir), {
         cursor: options.cursor,
-        onFile: (filename) => console.log(chalk.gray(`  └─ ${filename}`)),
+        onProgress: (downloaded, total, lastFile) => {
+            spinner.message(pc.dim(`[${downloaded}/${total}] ${lastFile}`));
+        },
     });
 
-    console.log(chalk.green(`\n✅ Installed: ${skill.name}`));
+    spinner.stop(pc.green(`✅ Installed: ${skill.name}`));
 }
 
 async function getAuthCredentials(url: string, options: InstallOptions): Promise<GitAuthOptions | null> {

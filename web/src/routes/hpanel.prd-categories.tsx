@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../components/DataTable'
 import { RightDrawer } from '../components/RightDrawer'
-import { getApiUrl } from '../lib/api-config'
+import { getApiUrl, getAdminToken } from '../lib/api-config'
 import { toast } from 'sonner'
 import type { ColumnDef } from '@tanstack/react-table'
 
@@ -28,7 +28,7 @@ function PrdCategoriesPage() {
         queryKey: ['admin-prd-categories'],
         queryFn: async () => {
             const res = await fetch(`${getApiUrl()}/api/admin/prds/categories`, {
-                headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+                headers: { 'Authorization': `Bearer ${getAdminToken()}` }
             })
             return res.json()
         }
@@ -40,7 +40,7 @@ function PrdCategoriesPage() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ralphy-default-admin-token'
+                    'Authorization': `Bearer ${getAdminToken()}`
                 },
                 body: JSON.stringify(data)
             })
@@ -57,7 +57,7 @@ function PrdCategoriesPage() {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ralphy-default-admin-token'
+                    'Authorization': `Bearer ${getAdminToken()}`
                 },
                 body: JSON.stringify(data)
             })
@@ -72,7 +72,7 @@ function PrdCategoriesPage() {
         mutationFn: async (id: string) => {
             await fetch(`${getApiUrl()}/api/admin/prds/categories/${id}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+                headers: { 'Authorization': `Bearer ${getAdminToken()}` }
             })
         },
         onSuccess: () => {

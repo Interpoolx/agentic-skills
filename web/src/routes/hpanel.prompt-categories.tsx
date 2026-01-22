@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../components/DataTable'
 import { RightDrawer } from '../components/RightDrawer'
-import { getApiUrl } from '../lib/api-config'
+import { getApiUrl, getAdminToken } from '../lib/api-config'
 import { toast } from 'sonner'
 import type { ColumnDef } from '@tanstack/react-table'
 
@@ -31,7 +31,7 @@ function PromptCategoriesPage() {
         queryKey: ['admin-prompt-categories'],
         queryFn: async () => {
             const res = await fetch(`${getApiUrl()}/api/admin/prompts/categories`, {
-                headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+                headers: { 'Authorization': `Bearer ${getAdminToken()}` }
             })
             return res.json()
         }
@@ -43,7 +43,7 @@ function PromptCategoriesPage() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ralphy-default-admin-token'
+                    'Authorization': `Bearer ${getAdminToken()}`
                 },
                 body: JSON.stringify(data)
             })
@@ -64,7 +64,7 @@ function PromptCategoriesPage() {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ralphy-default-admin-token'
+                    'Authorization': `Bearer ${getAdminToken()}`
                 },
                 body: JSON.stringify(data)
             })
@@ -83,7 +83,7 @@ function PromptCategoriesPage() {
         mutationFn: async (id: string) => {
             const res = await fetch(`${getApiUrl()}/api/admin/prompts/categories/${id}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
+                headers: { 'Authorization': `Bearer ${getAdminToken()}` }
             })
             if (!res.ok) throw new Error('Failed to delete')
             return res.json()
