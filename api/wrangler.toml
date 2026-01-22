@@ -1,0 +1,18 @@
+name = "agentic-skills-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "agentic-skills-db"
+database_id = "22fa2160-ea60-4d13-8985-72b8a8bb21fc"
+
+[vars]
+ENVIRONMENT = "production"
+GITHUB_TOKEN = ""
+
+# Enable dev mode for local development
+[dev]
+port = 8787
+local_protocol = "http"
