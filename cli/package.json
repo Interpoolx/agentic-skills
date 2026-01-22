@@ -1,0 +1,80 @@
+{
+    "name": "agentic-skills",
+    "version": "2.4.1",
+    "description": "Universal Skills loader for AI Coding Agents - The #1 CLI for AI Agent Skills",
+    "keywords": [
+        "skills",
+        "agent",
+        "ai",
+        "claude-code",
+        "codex",
+        "cursor",
+        "windsurf",
+        "github",
+        "letta",
+        "vscode",
+        "amp",
+        "goose",
+        "opencode",
+        "gemini",
+        "antigravity",
+        "trae",
+        "qoder",
+        "codebuddy",
+        "copilot",
+        "cli",
+        "installer",
+        "marketplace",
+        "skill-manager",
+        "ai-tools",
+        "developer-tools"
+    ],
+    "author": "Agentic Skills <hello@agenticskills.org> (https://agenticskills.org)",
+    "homepage": "https://github.com/Interpoolx/open-agentic-skills#readme",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Interpoolx/open-agentic-skills.git"
+    },
+    "bugs": {
+        "url": "https://github.com/Interpoolx/open-agentic-skills/issues"
+    },
+    "license": "MIT",
+    "bin": {
+        "agentic-skills": "./dist/index.js"
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE",
+        "marketplace.json",
+        "recommended_skills.json"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "prepublishOnly": "npm run build",
+        "test": "echo \"Tests will be added soon\" && exit 0",
+        "serve": "npm run build && node dist/index.js serve",
+        "db:push": "node scripts/native_sync.js push",
+        "db:pull": "node scripts/native_sync.js pull"
+    },
+    "dependencies": {
+        "@clack/prompts": "^0.11.0",
+        "chalk": "^4.1.2",
+        "commander": "^11.1.0",
+        "cross-fetch": "^4.1.0",
+        "gray-matter": "^4.0.3",
+        "inquirer": "^9.3.8",
+        "picocolors": "^1.1.1"
+    },
+    "devDependencies": {
+        "@types/inquirer": "^9.0.9",
+        "@types/node": "^20.0.0",
+        "typescript": "^5.0.0"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    }
+}
