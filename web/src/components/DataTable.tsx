@@ -95,7 +95,6 @@ export function DataTable<T>({
 
     // Check if all rows on current page are selected
     const currentPageRowIds = data.map((row, index) => getRowId ? getRowId(row) : String(index))
-    const selectedCount = rowSelection ? Object.keys(rowSelection).length : 0
     const allCurrentPageSelected = currentPageRowIds.length > 0 &&
         currentPageRowIds.every(id => rowSelection?.[id])
     const showSelectAllBanner = allCurrentPageSelected &&
