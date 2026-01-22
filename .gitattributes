@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Set the default end-of-line conversion to CRLF for all files
+* eol=crlf
