@@ -14,7 +14,7 @@ const program = new Command();
 program
     .name(CLI_BRANDING.brand_lower_name)
     .description(`Universal Skills loader for AI Coding Agents - The #1 CLI for AI Agent Skills`)
-    .version('2.4.9')
+    .version('2.5.0')
     .hook('preAction', () => {
         showBanner();
     });
@@ -38,11 +38,6 @@ program
     .action(async (skill: string, options) => {
         // If it's a repo URL or owner/repo, handle --skill flag
         let installPath = skill;
-
-        // Handle owner/repo format
-        if (!skill.includes('github.com') && !skill.startsWith('http') && skill.includes('/') && !skill.includes('\\')) {
-            installPath = `https://github.com/${skill}`;
-        }
 
         // If it's a URL and --skill is provided, append it to the path
         if ((installPath.includes('github.com') || installPath.startsWith('http')) && options.skill) {
@@ -72,10 +67,6 @@ program
     .action(async (repo: string, options) => {
         // Use the same logic as install/add alias
         let installPath = repo;
-
-        if (!repo.includes('github.com') && !repo.startsWith('http') && repo.includes('/') && !repo.includes('\\')) {
-            installPath = `https://github.com/${repo}`;
-        }
 
         if ((installPath.includes('github.com') || installPath.startsWith('http')) && options.skill) {
             if (!installPath.includes('/tree/') && !installPath.includes('/blob/')) {

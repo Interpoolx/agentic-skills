@@ -14,6 +14,8 @@ export interface SkillDefinition {
     source?: 'registry' | 'github' | 'local';
     recommended?: boolean;
     tags?: string[];
+    github_owner?: string;
+    github_repo?: string;
 }
 
 export interface SkillMetadata {

@@ -2,6 +2,9 @@ import { Hono } from 'hono'
 import { drizzle } from 'drizzle-orm/d1'
 import { skills, owners, repos, skillSubmissions, skillLikes, skillViews, skillReviews } from '../db/schema'
 import { eq, ne, like, desc, asc, sql, or, and } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+import matter from 'gray-matter'
+import * as path from 'node:path'
 
 interface Env {
     DB: D1Database
@@ -499,6 +502,247 @@ app.get('/api/stats/filter-options', async (c) => {
     } catch (err) {
         console.error('Filter options error:', err);
         return c.json({ error: 'Filter options error', owners: [], repos: [], categories: [], authors: [] }, 500);
+    }
+});
+
+app.post('/api/skills/resolve', async (c) => {
+    const db = drizzle(c.env.DB)
+    const body = await c.req.json()
+    const { owner, repo, skillName } = body as { owner: string; repo: string; skillName?: string }
+
+    if (!owner || !repo) {
+        return c.json({ error: 'Owner and Repo are required' }, 400)
+    }
+
+    const ownerSlug = owner.toLowerCase()
+    const repoSlug = repo.toLowerCase()
+    const skillSlug = skillName ? skillName.toLowerCase() : undefined
+
+    try {
+        // 1. Check DB for Repo
+        let ownerRecord = await db.select().from(owners).where(eq(owners.slug, ownerSlug)).get();
+        let repoRecord = null;
+
+        if (ownerRecord) {
+            repoRecord = await db.select().from(repos)
+                .where(and(eq(repos.slug, repoSlug), eq(repos.ownerId, ownerRecord.id)))
+                .get();
+        }
+
+        // 2. If repo exists
+        if (repoRecord) {
+            let foundSkill = null;
+            if (skillSlug) {
+                foundSkill = await db.select().from(skills)
+                    .where(and(
+                        eq(skills.repoId, repoRecord.id),
+                        or(eq(skills.slug, skillSlug), eq(skills.id, skillSlug))
+                    ))
+                    .get();
+
+                if (foundSkill) {
+                    return c.json({
+                        source: 'db',
+                        skill: {
+                            ...foundSkill,
+                            github_owner: ownerSlug,
+                            github_repo: repoSlug,
+                            skill_slug: foundSkill.slug,
+                            install_count: foundSkill.totalInstalls
+                        }
+                    });
+                }
+            } else {
+                // Return all skills for this repo
+                const repoSkills = await db.select().from(skills).where(eq(skills.repoId, repoRecord.id)).all();
+                if (repoSkills.length > 0) {
+                    const flatSkills = repoSkills.map(s => ({
+                        ...s,
+                        github_owner: ownerSlug,
+                        github_repo: repoSlug,
+                        skill_slug: s.slug,
+                        install_count: s.totalInstalls
+                    }));
+
+                    return c.json({
+                        source: 'db',
+                        owner: ownerSlug,
+                        repo: repoSlug,
+                        skills: flatSkills
+                    });
+                }
+            }
+        }
+
+        // 3. Fallback: Fetch from GitHub
+        console.log(`Resolving from GitHub: ${ownerSlug}/${repoSlug}`);
+
+        // Fetch Repo Info
+        const repoResp = await fetch(`https://api.github.com/repos/${ownerSlug}/${repoSlug}`, {
+            headers: { 'User-Agent': 'Agentic-Skills-Resolver' }
+        });
+
+        if (!repoResp.ok) {
+            return c.json({ error: 'Repository not found on GitHub' }, 404);
+        }
+
+        const repoData = await repoResp.json() as any;
+        const defaultBranch = repoData.default_branch || 'main';
+
+        // Ensure Owner Exists in DB
+        if (!ownerRecord) {
+            const newOwnerId = `owner_${uuidv4()}`;
+            await db.insert(owners).values({
+                id: newOwnerId,
+                slug: ownerSlug,
+                name: repoData.owner.login,
+                avatarUrl: repoData.owner.avatar_url,
+                githubUrl: repoData.owner.html_url,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }).run();
+            ownerRecord = await db.select().from(owners).where(eq(owners.slug, ownerSlug)).get();
+        }
+
+        // Ensure Repo Exists in DB
+        if (!repoRecord && ownerRecord) {
+            const newRepoId = `repo_${uuidv4()}`;
+            await db.insert(repos).values({
+                id: newRepoId,
+                ownerId: ownerRecord.id,
+                slug: repoSlug,
+                name: repoData.name,
+                description: repoData.description,
+                githubUrl: repoData.html_url,
+                githubStars: repoData.stargazers_count,
+                githubForks: repoData.forks_count,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }).run();
+            repoRecord = await db.select().from(repos).where(and(eq(repos.slug, repoSlug), eq(repos.ownerId, ownerRecord.id))).get();
+        }
+
+        if (!ownerRecord || !repoRecord) {
+            return c.json({ error: 'Database sync failed' }, 500);
+        }
+
+        // 4. Scan for Skills
+        const possibleFiles: { path: string; name: string; slug: string }[] = [];
+
+        if (skillName) {
+            possibleFiles.push({ path: `skills/${skillName}/SKILL.md`, name: skillName, slug: skillName });
+            if (skillSlug === repoSlug) {
+                possibleFiles.push({ path: 'SKILL.md', name: repoData.name, slug: repoSlug });
+            }
+        } else {
+            possibleFiles.push({ path: 'SKILL.md', name: repoData.name, slug: repoSlug });
+
+            const treeResp = await fetch(`https://api.github.com/repos/${ownerSlug}/${repoSlug}/contents/skills`, {
+                headers: { 'User-Agent': 'Agentic-Skills-Resolver' }
+            });
+
+            if (treeResp.ok) {
+                const items = await treeResp.json() as any[];
+                if (Array.isArray(items)) {
+                    const folderSkills = items
+                        .filter(i => i.type === 'dir')
+                        .map(i => ({ path: `skills/${i.name}/SKILL.md`, name: i.name, slug: i.name.toLowerCase() }));
+                    possibleFiles.push(...folderSkills);
+                }
+            }
+        }
+
+        const stats = { found: 0, imported: 0 };
+        const importedSkills = [];
+        const seenSlugs = new Set();
+
+        for (const file of possibleFiles) {
+            if (seenSlugs.has(file.slug)) continue;
+
+            const rawUrl = `https://raw.githubusercontent.com/${ownerSlug}/${repoSlug}/${defaultBranch}/${file.path}`;
+            const fileResp = await fetch(rawUrl);
+
+            if (fileResp.ok) {
+                const content = await fileResp.text();
+                let data: any = {};
+                try {
+                    const parsed = matter(content);
+                    data = parsed.data;
+                } catch (e) {
+                    console.error(`Failed to parse markdown for ${file.path}`);
+                }
+
+                // If no frontmatter/invalid, construct basic metadata
+                const name = data.name || file.name;
+                const description = data.description || repoData.description || 'No description';
+
+                let existingSkill = await db.select().from(skills)
+                    .where(and(eq(skills.repoId, repoRecord!.id), eq(skills.slug, file.slug)))
+                    .get();
+
+                const newSkillValues = {
+                    repoId: repoRecord!.id,
+                    slug: file.slug,
+                    name: name,
+                    shortDescription: description.substring(0, 200),
+                    fullDescription: description,
+                    version: data.version || '1.0.0',
+                    category: data.category || 'general',
+                    tags: JSON.stringify(data.tags || []),
+                    author: data.author || repoData.owner.login,
+                    license: data.license || repoData.license?.spdx_id || 'MIT',
+                    githubUrl: `https://github.com/${ownerSlug}/${repoSlug}/tree/${defaultBranch}/${path.dirname(file.path)}`,
+                    skillFile: file.path,
+                    updatedAt: new Date().toISOString(),
+                    indexedAt: new Date().toISOString()
+                };
+
+                if (existingSkill) {
+                    await db.update(skills).set(newSkillValues).where(eq(skills.id, existingSkill.id)).run();
+                    importedSkills.push({ ...existingSkill, ...newSkillValues });
+                } else {
+                    const newId = data.id || `${ownerSlug}-${repoSlug}-${file.slug}`.toLowerCase();
+                    const insertValues = {
+                        id: newId,
+                        ...newSkillValues,
+                        totalInstalls: 0,
+                        totalStars: 0,
+                        status: 'published',
+                        createdAt: new Date().toISOString()
+                    };
+                    try {
+                        await db.insert(skills).values(insertValues as any).run();
+                        importedSkills.push(insertValues);
+                    } catch (err) {
+                        console.error('Insert failed', err);
+                    }
+                }
+                seenSlugs.add(file.slug);
+                stats.found++;
+                stats.imported++;
+            }
+        }
+
+        if (stats.found === 0) {
+            return c.json({ error: 'No skills found in repository' }, 404);
+        }
+
+        return c.json({
+            source: 'github-import',
+            owner: ownerSlug,
+            repo: repoSlug,
+            count: importedSkills.length,
+            skills: importedSkills.map(s => ({
+                ...s,
+                github_owner: ownerSlug,
+                github_repo: repoSlug,
+                skill_slug: s.slug
+            }))
+        });
+
+    } catch (error: any) {
+        console.error('Resolve error:', error);
+        return c.json({ error: 'Resolution failed', details: error.message }, 500)
     }
 });
 

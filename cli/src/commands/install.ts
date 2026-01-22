@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import chalk from 'chalk';
-import { findSkill, loadRegistry, isSkillInstalled, findProjectRoot } from '../utils/registry';
+import { findSkill, loadRegistry, isSkillInstalled, findProjectRoot, resolveSkill } from '../utils/registry';
 import { installSkillFromUrl, parseGitHubUrl, listSkillsInRepo } from '../utils/downloader';
 import {
     parseGitHubAuthUrl,
@@ -66,6 +66,69 @@ export async function installSkill(skillNameOrUrl: string, options: InstallOptio
         } else if (isUrl) {
             await installFromUrl(skillNameOrUrl, skillsDir, options);
         } else {
+            // Check for owner/repo format (e.g. "remotion-dev/skills" or "owner/repo")
+            const isOwnerRepo = /^[a-zA-Z0-9-]+\/[a-zA-Z0-9-_\.]+$/.test(skillNameOrUrl);
+
+            if (isOwnerRepo) {
+                console.log(chalk.cyan(`\n🔍 Resolving skill "${skillNameOrUrl}"...`));
+                const [owner, repo] = skillNameOrUrl.split('/');
+                const resolved = await resolveSkill(owner, repo, options.skill);
+
+                if (resolved && (resolved.skill || (resolved.skills && resolved.skills.length > 0))) {
+                    let targetUrl = '';
+
+                    if (resolved.skill) {
+                        targetUrl = resolved.skill.githubUrl || resolved.skill.url;
+                        console.log(chalk.green(`✓ Found skill: ${pc.bold(resolved.skill.name)}`));
+                    } else if (resolved.skills) {
+                        if (resolved.skills.length === 1) {
+                            targetUrl = resolved.skills[0].githubUrl || resolved.skills[0].url;
+                            console.log(chalk.green(`✓ Found skill: ${pc.bold(resolved.skills[0].name)}`));
+                        } else {
+                            // Prompt selection
+                            const selectedPaths = await p.multiselect({
+                                message: 'Select skills to install:',
+                                options: resolved.skills.map((s: any) => ({
+                                    value: s.githubUrl || s.url,
+                                    label: pc.bold(s.name),
+                                    hint: s.shortDescription || s.description
+                                })),
+                                required: true
+                            });
+
+                            if (p.isCancel(selectedPaths)) {
+                                p.cancel('Installation cancelled');
+                                return;
+                            }
+
+                            // Handle multiple selection by installing sequentially
+                            // Note: installFromUrl is designed for single URL mostly, but we can loop
+                            const selectedUrls = selectedPaths as string[];
+
+                            // If only one selected, proceed normally
+                            if (selectedUrls.length === 1) {
+                                targetUrl = selectedUrls[0];
+                            } else {
+                                // Loop install
+                                for (const url of selectedUrls) {
+                                    await installFromUrl(url, skillsDir, options);
+                                }
+                                return; // Done
+                            }
+                        }
+                    }
+
+                    if (targetUrl) {
+                        await installFromUrl(targetUrl, skillsDir, options);
+                        return;
+                    }
+                } else {
+                    console.log(chalk.yellow(`\n⚠️ Could not resolve via API. Falling back to GitHub...`));
+                    await installFromUrl(`https://github.com/${skillNameOrUrl}`, skillsDir, options);
+                    return;
+                }
+            }
+
             await installFromRegistry(skillNameOrUrl, skillsDir, options);
         }
 

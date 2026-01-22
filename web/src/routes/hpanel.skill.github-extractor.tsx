@@ -100,31 +100,76 @@ function RouteComponent() {
       const repoData = await repoResponse.json()
 
       // Try to find SKILL.md file
+      // Try to find SKILL.md file
       let skillPath = null
       let skillContent = ''
 
-      // Check common locations
-      const possiblePaths = [
-        'SKILL.md',
-        'skill.md',
-        'skills/SKILL.md',
-        `skills/${repo}/SKILL.md`,
-        'README.md'
-      ]
-
-      for (const path of possiblePaths) {
-        try {
-          const contentResponse = await fetch(
-            `https://api.github.com/repos/${owner}/${repo}/contents/${path}`
-          )
-          if (contentResponse.ok) {
-            const contentData = await contentResponse.json()
-            skillPath = path
-            skillContent = atob(contentData.content)
-            break
+      // First, try to find skills folder and explore it
+      try {
+        const skillsFolderResponse = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/skills`
+        )
+        
+        if (skillsFolderResponse.ok) {
+          const skillsFolder = await skillsFolderResponse.json()
+          
+          // Skills folder exists, look for subdirectories
+          if (Array.isArray(skillsFolder)) {
+            for (const item of skillsFolder) {
+              if (item.type === 'dir') {
+                // Check for SKILL.md in this subdirectory
+                try {
+                  const subfolderResponse = await fetch(
+                    `https://api.github.com/repos/${owner}/${repo}/contents/skills/${item.name}`
+                  )
+                  if (subfolderResponse.ok) {
+                    const subfolderContents = await subfolderResponse.json()
+                    const skillFile = subfolderContents.find(
+                      (file: any) => file.name.toLowerCase() === 'skill.md'
+                    )
+                    
+                    if (skillFile) {
+                      const contentResponse = await fetch(skillFile.download_url)
+                      if (contentResponse.ok) {
+                        skillPath = `skills/${item.name}/SKILL.md`
+                        skillContent = await contentResponse.text()
+                        break
+                      }
+                    }
+                  }
+                } catch (e) {
+                  continue
+                }
+              }
+            }
           }
-        } catch (e) {
-          continue
+        }
+      } catch (e) {
+        // Skills folder doesn't exist, try other locations
+      }
+
+      // If not found in skills folder, check common locations
+      if (!skillPath) {
+        const possiblePaths = [
+          'SKILL.md',
+          'skill.md',
+          'README.md'
+        ]
+
+        for (const path of possiblePaths) {
+          try {
+            const contentResponse = await fetch(
+              `https://api.github.com/repos/${owner}/${repo}/contents/${path}`
+            )
+            if (contentResponse.ok) {
+              const contentData = await contentResponse.json()
+              skillPath = path
+              skillContent = atob(contentData.content)
+              break
+            }
+          } catch (e) {
+            continue
+          }
         }
       }
 

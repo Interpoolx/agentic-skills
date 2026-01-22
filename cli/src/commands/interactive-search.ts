@@ -229,7 +229,10 @@ export async function searchSkillsSimple(query: string, options: SearchOptions =
             if (skill.description) {
                 console.log(pc.dim(`    ${skill.description.substring(0, 70)}${skill.description.length > 70 ? '...' : ''}`));
             }
-            console.log(pc.gray(`    Command: `) + pc.cyan(`npx ${CLI_BRANDING.brand_lower_name} add ${skill.id}`));
+            const installArg = (skill.github_owner && skill.github_repo)
+                ? `${skill.github_owner}/${skill.github_repo}`
+                : (skill.id || skill.url);
+            console.log(pc.gray(`    Command: `) + pc.cyan(`npx ${CLI_BRANDING.brand_lower_name} add ${installArg}`));
             console.log('');
         });
 

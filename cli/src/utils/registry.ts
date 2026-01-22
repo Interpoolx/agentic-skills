@@ -139,7 +139,9 @@ function mapSkill(item: any): SkillDefinition {
         category: item.category,
         tags: Array.isArray(item.tags) ? item.tags : (typeof item.tags === 'string' ? JSON.parse(item.tags) : []),
         source: item.source || 'registry',
-        recommended: item.recommended || item.isFeatured || item.is_featured
+        recommended: item.recommended || item.isFeatured || item.is_featured,
+        github_owner: item.github_owner || item.githubOwner || (item.owner?.slug || ''),
+        github_repo: item.github_repo || item.githubRepo || (item.repo?.slug || '')
     };
 }
 
@@ -389,4 +391,25 @@ export function getInstalledSkillsMetadata(baseDir: string = '.'): SkillMetadata
 export function isSkillInstalled(skillFolderName: string, baseDir: string = '.'): boolean {
     const metadata = getInstalledSkillsMetadata(baseDir);
     return metadata.some(s => s.id === skillFolderName || s.name === skillFolderName);
+}
+
+/**
+ * Resolve a skill from owner/repo via API.
+ */
+export async function resolveSkill(owner: string, repo: string, skillName?: string): Promise<any> {
+    try {
+        const res = await fetch(`${REGISTRY_API_URL}/skills/resolve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner, repo, skillName })
+        });
+
+        if (res.ok) {
+            return await res.json();
+        }
+        return null;
+    } catch (e) {
+        if (process.env.DEBUG) console.error('API Resolve Failed:', e);
+        return null;
+    }
 }
