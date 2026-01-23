@@ -1,0 +1,1 @@
+---\nname: Test Skill\ndescription: A test skill\n---\nThis is the content of the test skill.

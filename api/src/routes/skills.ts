@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { drizzle } from 'drizzle-orm/d1'
-import { skills, owners, repos, skillSubmissions, skillLikes, skillViews, skillReviews } from '../db/schema'
+import { skills, owners, repos, skillSubmissions, skillLikes, skillViews, skillReviews, prds, prompts } from '../db/schema'
 import { eq, ne, like, desc, asc, sql, or, and } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import matter from 'gray-matter'
@@ -457,16 +457,41 @@ app.get('/api/skills/owner/:ownerSlug', async (c) => {
 app.get('/api/stats', async (c) => {
     const db = drizzle(c.env.DB);
     try {
-        const skillCount = await db.select({ count: sql<number>`count(*)` }).from(skills).get();
-        const installSum = await db.select({ sum: sql<number>`sum(total_installs)` }).from(skills).get();
+        const [
+            skillCount,
+            installSum,
+            ownersCount,
+            reposCount,
+            prdsCount,
+            promptsCount,
+            cliInstalls
+        ] = await Promise.all([
+            db.select({ count: sql<number>`count(*)` }).from(skills).get(),
+            db.select({ sum: sql<number>`sum(total_installs)` }).from(skills).get(),
+            db.select({ count: sql<number>`count(*)` }).from(owners).get(),
+            db.select({ count: sql<number>`count(*)` }).from(repos).get(),
+            db.select({ count: sql<number>`count(*)` }).from(prds).get(),
+            db.select({ count: sql<number>`count(*)` }).from(prompts).get(),
+            // Count installs specifically from CLI client (if install_events table is populated)
+            db.run(sql`SELECT count(*) as count FROM install_events WHERE client = 'cli'`).then(res => (res.results?.[0] as any)?.count || 0).catch(() => 0)
+        ]);
+
+        // Get unique categories count from skills
+        const categoriesCount = await db.select({ count: sql<number>`count(distinct category)` }).from(skills).get();
 
         return c.json({
             skills: skillCount?.count || 0,
             totalInstalls: installSum?.sum || 0,
-            categories: 10,
+            cliInstalls: cliInstalls || 0,
+            owners: ownersCount?.count || 0,
+            repos: reposCount?.count || 0,
+            prds: prdsCount?.count || 0,
+            prompts: promptsCount?.count || 0,
+            categories: categoriesCount?.count || 0,
             lastUpdated: new Date().toISOString()
         })
     } catch (err) {
+        console.error('Stats error:', err);
         return c.json({ error: 'Stats error' }, 500)
     }
 });
