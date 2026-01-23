@@ -1371,7 +1371,7 @@ function ImportForm({ onSuccess }: { onSuccess: () => void }) {
       }
 
       // Basic structural validation before sending to backend
-      const invalidSkills = skills.filter((s: any, i: number) => {
+      const invalidSkills = skills.filter((s: any) => {
         const hasId = s.id || s.slug || s.skill_slug || s.name;
         const hasOwnerRepo = (s.owner && s.repo) || s.github_url || s.source;
         return !hasId || !hasOwnerRepo;
@@ -1499,8 +1499,8 @@ function ImportForm({ onSuccess }: { onSuccess: () => void }) {
       {/* Progress Section */}
       {progress.stage !== 'idle' && (
         <div className={`rounded-xl p-6 border ${progress.stage === 'complete' ? 'bg-green-500/5 border-green-500/20' :
-            progress.stage === 'error' ? 'bg-red-500/5 border-red-500/20' :
-              'bg-blue-500/5 border-blue-500/20 shadow-lg shadow-blue-500/5'
+          progress.stage === 'error' ? 'bg-red-500/5 border-red-500/20' :
+            'bg-blue-500/5 border-blue-500/20 shadow-lg shadow-blue-500/5'
           }`}>
           {/* Progress Header */}
           <div className="flex items-center justify-between mb-4">
@@ -1577,8 +1577,8 @@ function ImportForm({ onSuccess }: { onSuccess: () => void }) {
           onClick={handleImport}
           disabled={!file || importing}
           className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-3 shadow-lg ${!file || importing
-              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 hover:shadow-blue-500/20 active:scale-[0.98]'
+            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+            : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-500 hover:to-indigo-500 hover:shadow-blue-500/20 active:scale-[0.98]'
             }`}
         >
           {importing ? (
