@@ -1321,66 +1321,67 @@ app.post('/api/admin/import-json', async (c) => {
         errorDetails: [] as string[]
     }
 
+    const ownerCache = new Map<string, any>()
+    const repoCache = new Map<string, any>()
+
     for (const skillData of skillsToImport) {
         try {
             // Extract owner and repo from the skill data
-            const ownerSlug = skillData.owner || '';
-            const repoSlug = skillData.repo || '';
-            const skillSlug = skillData.skill_slug || skillData.slug || skillData.id || skillData.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || '';
+            const ownerSlug = (skillData.owner || '').toLowerCase();
+            const repoSlug = (skillData.repo || '').toLowerCase();
+            const skillSlug = (skillData.skill_slug || skillData.slug || skillData.id || skillData.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || '').toLowerCase();
 
             if (!ownerSlug || !repoSlug || !skillSlug) {
                 results.errors++;
-                results.errorDetails.push(`Missing required field for skill: ${skillData.name || 'unknown'}`);
+                results.errorDetails.push(`Missing required field for skill: ${skillData.name || 'unknown'}. Need owner, repo, and slug/name.`);
                 continue;
             }
 
-            // 1. Find or create owner
-            let owner = await db.select().from(owners).where(eq(owners.slug, ownerSlug)).get();
+            // 1. Find or create owner (with local cache)
+            let owner = ownerCache.get(ownerSlug);
             if (!owner) {
-                const ownerId = `owner_${crypto.randomUUID()}`;
-                await db.insert(owners).values({
-                    id: ownerId,
-                    slug: ownerSlug,
-                    name: ownerSlug,
-                    githubUrl: `https://github.com/${ownerSlug}`,
-                    createdAt: new Date().toISOString()
-                }).run();
-                owner = await db.select().from(owners).where(eq(owners.id, ownerId)).get();
-                results.ownersCreated++;
+                owner = await db.select().from(owners).where(eq(owners.slug, ownerSlug)).get();
+                if (!owner) {
+                    const ownerId = `owner_${crypto.randomUUID()}`;
+                    await db.insert(owners).values({
+                        id: ownerId,
+                        slug: ownerSlug,
+                        name: ownerSlug,
+                        githubUrl: `https://github.com/${ownerSlug}`,
+                        createdAt: new Date().toISOString()
+                    }).run();
+                    owner = { id: ownerId, slug: ownerSlug };
+                    results.ownersCreated++;
+                }
+                ownerCache.set(ownerSlug, owner);
             }
 
-            if (!owner) {
-                results.errors++;
-                results.errorDetails.push(`Failed to create owner: ${ownerSlug}`);
-                continue;
-            }
-
-            // 2. Find or create repo
-            let repo = await db.select().from(repos)
-                .where(and(eq(repos.slug, repoSlug), eq(repos.ownerId, owner.id)))
-                .get();
-
+            // 2. Find or create repo (with local cache)
+            const repoCacheKey = `${ownerSlug}/${repoSlug}`;
+            let repo = repoCache.get(repoCacheKey);
             if (!repo) {
-                const repoId = `repo_${crypto.randomUUID()}`;
-                await db.insert(repos).values({
-                    id: repoId,
-                    slug: repoSlug,
-                    name: repoSlug,
-                    ownerId: owner.id,
-                    githubUrl: `https://github.com/${ownerSlug}/${repoSlug}`,
-                    createdAt: new Date().toISOString()
-                }).run();
-                repo = await db.select().from(repos).where(eq(repos.id, repoId)).get();
-                results.reposCreated++;
-            }
+                repo = await db.select().from(repos)
+                    .where(and(eq(repos.slug, repoSlug), eq(repos.ownerId, owner.id)))
+                    .get();
 
-            if (!repo) {
-                results.errors++;
-                results.errorDetails.push(`Failed to create repo: ${repoSlug}`);
-                continue;
+                if (!repo) {
+                    const repoId = `repo_${crypto.randomUUID()}`;
+                    await db.insert(repos).values({
+                        id: repoId,
+                        slug: repoSlug,
+                        name: repoSlug,
+                        ownerId: owner.id,
+                        githubUrl: `https://github.com/${ownerSlug}/${repoSlug}`,
+                        createdAt: new Date().toISOString()
+                    }).run();
+                    repo = { id: repoId, slug: repoSlug, ownerId: owner.id };
+                    results.reposCreated++;
+                }
+                repoCache.set(repoCacheKey, repo);
             }
 
             // 3. Check for existing skill by ID or slug within this repo
+            // We don't cache skills as they are usually unique per record in the import
             const existingSkill = await db.select()
                 .from(skills)
                 .where(
@@ -1399,21 +1400,21 @@ app.post('/api/admin/import-json', async (c) => {
                 slug: skillSlug,
                 shortDescription: skillData.short_description || skillData.description || '',
                 category: skillData.category || 'general',
-                tags: Array.isArray(tags) ? JSON.stringify(tags) : tags,
+                tags: Array.isArray(tags) ? JSON.stringify(tags) : (typeof tags === 'string' ? tags : JSON.stringify([])),
                 version: skillData.version || '1.0.0',
                 status: skillData.status || 'published',
                 githubUrl: skillData.github_url || skillData.source || `https://github.com/${ownerSlug}/${repoSlug}`,
                 author: typeof skillData.author === 'object' ? skillData.author?.name : (skillData.author || ownerSlug),
                 skillFile: skillData.skill_file || skillData.skill_md_url || 'SKILL.md',
-                totalInstalls: skillData.total_installs || skillData.downloads || 0,
-                totalStars: skillData.total_stars || 0,
-                averageRating: skillData.average_rating || skillData.rating || 0,
-                totalReviews: skillData.total_reviews || skillData.reviews || 0,
+                totalInstalls: parseInt(skillData.total_installs || skillData.downloads || 0),
+                totalStars: parseInt(skillData.total_stars || 0),
+                averageRating: parseFloat(skillData.average_rating || skillData.rating || 0),
+                totalReviews: parseInt(skillData.total_reviews || skillData.reviews || 0),
                 isVerified: skillData.is_verified || (skillData.verified ? 1 : 0),
                 isFeatured: skillData.is_featured || 0,
                 compatibility: typeof skillData.compatibility === 'string' ? skillData.compatibility : JSON.stringify({
-                    agents: skillData.compatible_agents || ['claude-code', 'cursor'],
-                    requirements: skillData.requirements || []
+                    agents: skillData.compatible_agents || (skillData.compatibility?.agents) || ['claude-code', 'cursor'],
+                    requirements: skillData.requirements || (skillData.compatibility?.requirements) || []
                 }),
                 updatedAt: new Date().toISOString()
             };

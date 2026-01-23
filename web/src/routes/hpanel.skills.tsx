@@ -680,14 +680,13 @@ function SkillsPage() {
         />
       </RightDrawer>
 
-      {/* Import Drawer */}
       <RightDrawer
         isOpen={drawerMode === 'import'}
         onClose={() => setDrawerMode(null)}
         title="Import Skills"
         width="max-w-lg"
       >
-        <ImportForm onSuccess={() => { setDrawerMode(null); queryClient.invalidateQueries({ queryKey: ['skills'] }) }} />
+        <ImportForm onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['skills'] }) }} />
       </RightDrawer>
     </div>
   )
@@ -1389,49 +1388,86 @@ function ImportForm({ onSuccess }: { onSuccess: () => void }) {
 
       setProgress(prev => ({ ...prev, stage: 'processing', total: skills.length }))
 
-      // Send to backend API for processing
-      const res = await fetch(`${getApiUrl()}/api/admin/import-json`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getAdminToken()}`
-        },
-        body: JSON.stringify({ skills })
-      })
+      const CHUNK_SIZE = 20;
+      let totalImported = 0;
+      let totalDuplicates = 0;
+      let totalErrors = 0;
+      let totalOwnersCreated = 0;
+      let totalReposCreated = 0;
+      let allErrors: string[] = [];
 
-      const result = await res.json()
+      for (let i = 0; i < skills.length; i += CHUNK_SIZE) {
+        const chunk = skills.slice(i, i + CHUNK_SIZE);
 
-      if (res.ok) {
-        setProgress({
-          stage: 'complete',
-          total: skills.length,
-          processed: skills.length,
-          imported: result.imported || 0,
-          duplicates: result.duplicates || 0,
-          errors: result.errors || 0,
-          ownersCreated: result.ownersCreated || 0,
-          reposCreated: result.reposCreated || 0,
-          errorDetails: result.errorDetails || []
-        })
-        if (result.imported > 0) {
-          toast.success(`Successfully imported ${result.imported} skills!`)
-          setTimeout(onSuccess, 3000)
-        } else if (result.errors > 0) {
-          toast.error(`Import failed with ${result.errors} errors.`)
+        try {
+          // Send chunk to backend API for processing
+          const res = await fetch(`${getApiUrl()}/api/admin/import-json`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${getAdminToken()}`
+            },
+            body: JSON.stringify({ skills: chunk })
+          })
+
+          const result = await res.json()
+
+          if (res.ok) {
+            totalImported += result.imported || 0;
+            totalDuplicates += result.duplicates || 0;
+            totalErrors += result.errors || 0;
+            totalOwnersCreated += result.ownersCreated || 0;
+            totalReposCreated += result.reposCreated || 0;
+            if (result.errorDetails) {
+              allErrors = [...allErrors, ...result.errorDetails];
+            }
+
+            setProgress(prev => ({
+              ...prev,
+              processed: Math.min(i + CHUNK_SIZE, skills.length),
+              imported: totalImported,
+              duplicates: totalDuplicates,
+              errors: totalErrors,
+              ownersCreated: totalOwnersCreated,
+              reposCreated: totalReposCreated,
+              errorDetails: allErrors
+            }))
+          } else {
+            totalErrors += chunk.length;
+            const errorMsg = result.error || `Chunk ${Math.floor(i / CHUNK_SIZE) + 1} failed`;
+            allErrors.push(errorMsg);
+            setProgress(prev => ({
+              ...prev,
+              processed: Math.min(i + CHUNK_SIZE, skills.length),
+              errors: totalErrors,
+              errorDetails: allErrors
+            }))
+          }
+        } catch (err: any) {
+          totalErrors += chunk.length;
+          allErrors.push(`Network error in chunk ${Math.floor(i / CHUNK_SIZE) + 1}: ${err.message}`);
+          setProgress(prev => ({
+            ...prev,
+            processed: Math.min(i + CHUNK_SIZE, skills.length),
+            errors: totalErrors,
+            errorDetails: allErrors
+          }))
         }
-      } else {
-        setProgress(prev => ({
-          ...prev,
-          stage: 'error',
-          errorDetails: [result.error || 'Import failed at backend']
-        }))
+      }
+
+      setProgress(prev => ({ ...prev, stage: 'complete' }))
+
+      if (totalImported > 0) {
+        toast.success(`Import finished. ${totalImported} skills added, ${totalDuplicates} updated.`)
+      } else if (totalErrors > 0) {
+        toast.error(`Import finished with ${totalErrors} errors.`)
       }
     } catch (err: any) {
-      console.error('Import error:', err)
+      console.error('Import process error:', err)
       setProgress(prev => ({
         ...prev,
         stage: 'error',
-        errorDetails: [err.message || 'Failed to process import']
+        errorDetails: [err.message || 'Failed to complete import process']
       }))
     }
 
