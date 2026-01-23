@@ -91,13 +91,43 @@ function parseSkillMd(content: string, owner: string, repo: string, url: string)
         tags: []
     };
 
-    // Very basic regex-based parser for SKILL.md
-    // In a real scenario, we might use a markdown parser + frontmatter parser
-    const nameMatch = content.match(/^#\s+(.+)$/m);
-    if (nameMatch) result.name = nameMatch[1].trim();
+    // 1. Try Partial YAML Frontmatter Parsing
+    // Matches key: value or key: > (multiline)
+    const yamlMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    if (yamlMatch) {
+        const yamlContent = yamlMatch[1];
 
-    const descMatch = content.match(/^#\s+.+\n+([\s\S]+?)(?:\n\n|\n#|$)/);
-    if (descMatch) result.description = descMatch[1].trim().split('\n')[0];
+        const nameMatch = yamlContent.match(/^name:\s*(.+)$/m);
+        if (nameMatch) result.name = nameMatch[1].trim().replace(/['"]/g, '');
+
+        const descMatch = yamlContent.match(/^description:\s*(?:>|[|])?\n?((?:(?:\s{2,}.+(?:\n|$))|(?:\s*.+(?:\n|$)))+)/m);
+        // Fallback for simple description
+        const simpleDescMatch = yamlContent.match(/^description:\s*(.+)$/m);
+
+        if (descMatch) {
+            result.description = descMatch[1].trim().replace(/\n\s+/g, ' ');
+        } else if (simpleDescMatch) {
+            result.description = simpleDescMatch[1].trim();
+        }
+
+        const authorMatch = yamlContent.match(/^author:\s*(.+)$/m);
+        if (authorMatch) result.author = authorMatch[1].trim();
+
+        const versionMatch = yamlContent.match(/^version:\s*(.+)$/m);
+        if (versionMatch) result.version = versionMatch[1].trim().replace(/['"]/g, '');
+    }
+
+    // 2. Fallbacks if YAML missing
+    if (!result.name) {
+        const h1Match = content.match(/^#\s+(.+)$/m);
+        if (h1Match) result.name = h1Match[1].trim();
+    }
+
+    if (!result.description) {
+        // Look for text after the first header or just the first paragraph
+        const descMatch = content.match(/^(?:#\s+.+\n+)?([\s\S]+?)(?:\n\n|\n#|$)/);
+        if (descMatch) result.description = descMatch[1].trim().split('\n')[0];
+    }
 
     return result;
 }

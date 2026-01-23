@@ -180,10 +180,25 @@ app.delete('/api/admin/repos/:id', async (c) => {
     const db = drizzle(c.env.DB)
     const id = c.req.param('id')
     try {
+        // First delete all skills associated with this repo
+        await db.delete(skills).where(eq(skills.repoId, id)).run()
+
+        // Then delete the repo
         await db.delete(repos).where(eq(repos.id, id)).run()
         return c.json({ success: true })
     } catch (error) {
         return c.json({ error: 'Failed to delete repo' }, 500)
+    }
+})
+
+app.delete('/api/admin/skills/:id', async (c) => {
+    const db = drizzle(c.env.DB)
+    const id = c.req.param('id')
+    try {
+        await db.delete(skills).where(eq(skills.id, id)).run()
+        return c.json({ success: true })
+    } catch (error) {
+        return c.json({ error: 'Failed to delete skill' }, 500)
     }
 })
 
@@ -219,50 +234,49 @@ app.post('/api/admin/skills', async (c) => {
     const db = drizzle(c.env.DB)
     const body = await c.req.json()
 
-    if (body.githubUrl && (!body.ownerId || !body.repoId)) {
+    const ownerSlug = body.owner || (body.githubUrl ? body.githubUrl.match(/github\.com\/([^\/]+)/)?.[1] : '');
+    const repoSlug = body.repo || (body.githubUrl ? body.githubUrl.match(/github\.com\/[^\/]+\/([^\/]+)/)?.[1]?.replace('.git', '') : '');
+
+    if (ownerSlug && (!body.ownerId || body.ownerId === '')) {
         try {
-            const match = body.githubUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-            if (match) {
-                const ownerSlug = match[1];
-                const repoSlug = match[2].replace('.git', '');
-
-                let owner = await db.select().from(owners).where(eq(owners.slug, ownerSlug)).get();
-                if (!owner) {
-                    const ownerId = `owner_${crypto.randomUUID()}`;
-                    await db.insert(owners).values({
-                        id: ownerId,
-                        slug: ownerSlug,
-                        name: ownerSlug,
-                        githubUrl: `https://github.com/${ownerSlug}`,
-                        createdAt: new Date().toISOString()
-                    }).run();
-                    owner = await db.select().from(owners).where(eq(owners.id, ownerId)).get();
-                }
-
-                if (owner) {
-                    body.ownerId = owner.id;
-
-                    let repo = await db.select().from(repos).where(eq(repos.slug, repoSlug)).get();
-                    if (!repo) {
-                        const repoId = `repo_${crypto.randomUUID()}`;
-                        await db.insert(repos).values({
-                            id: repoId,
-                            slug: repoSlug,
-                            name: repoSlug,
-                            ownerId: owner.id,
-                            githubUrl: `https://github.com/${ownerSlug}/${repoSlug}`,
-                            createdAt: new Date().toISOString()
-                        }).run();
-                        repo = await db.select().from(repos).where(eq(repos.id, repoId)).get();
-                    }
-
-                    if (repo) {
-                        body.repoId = repo.id;
-                    }
-                }
+            let owner = await db.select().from(owners).where(eq(owners.slug, ownerSlug.toLowerCase())).get();
+            if (!owner) {
+                const ownerId = `owner_${crypto.randomUUID()}`;
+                await db.insert(owners).values({
+                    id: ownerId,
+                    slug: ownerSlug.toLowerCase(),
+                    name: ownerSlug,
+                    githubUrl: `https://github.com/${ownerSlug}`,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }).run();
+                owner = await db.select().from(owners).where(eq(owners.id, ownerId)).get();
             }
-        } catch (error) {
-            console.error('Auto-creation failed:', error);
+            if (owner) body.ownerId = owner.id;
+        } catch (e) {
+            console.error('Owner resolution failed:', e);
+        }
+    }
+
+    if (repoSlug && body.ownerId && (!body.repoId || body.repoId === '')) {
+        try {
+            let repo = await db.select().from(repos).where(and(eq(repos.slug, repoSlug.toLowerCase()), eq(repos.ownerId, body.ownerId))).get();
+            if (!repo) {
+                const repoId = `repo_${crypto.randomUUID()}`;
+                await db.insert(repos).values({
+                    id: repoId,
+                    slug: repoSlug.toLowerCase(),
+                    name: repoSlug,
+                    ownerId: body.ownerId,
+                    githubUrl: `https://github.com/${ownerSlug}/${repoSlug}`,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                }).run();
+                repo = await db.select().from(repos).where(eq(repos.id, repoId)).get();
+            }
+            if (repo) body.repoId = repo.id;
+        } catch (e) {
+            console.error('Repo resolution failed:', e);
         }
     }
 
@@ -271,9 +285,10 @@ app.post('/api/admin/skills', async (c) => {
     }
 
     try {
-        const id = `skill_${crypto.randomUUID()}`
-        await db.insert(skills).values({
-            id,
+        // Check if skill with this slug already exists for this repo
+        const existing = await db.select().from(skills).where(and(eq(skills.slug, body.slug), eq(skills.repoId, body.repoId))).get();
+
+        const skillData: any = {
             repoId: body.repoId,
             name: body.name,
             slug: body.slug,
@@ -292,11 +307,21 @@ app.post('/api/admin/skills', async (c) => {
             isVerified: body.isVerified || 0,
             isFeatured: body.isFeatured || 0,
             compatibility: body.compatibility || '{}',
-            createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-        }).run()
+        };
 
-        return c.json({ success: true, id })
+        if (existing) {
+            await db.update(skills).set(skillData).where(eq(skills.id, existing.id)).run();
+            return c.json({ success: true, id: existing.id, updated: true });
+        } else {
+            const id = `skill_${crypto.randomUUID()}`;
+            await db.insert(skills).values({
+                ...skillData,
+                id,
+                createdAt: new Date().toISOString()
+            }).run();
+            return c.json({ success: true, id, created: true });
+        }
     } catch (error: any) {
         console.error('Create skill error:', error)
         return c.json({ error: error.message || 'Failed to create skill' }, 500)
@@ -331,6 +356,48 @@ app.patch('/api/admin/skills/:id', async (c) => {
         if (body.isFeatured !== undefined) updateData.isFeatured = body.isFeatured;
         if (body.compatibility !== undefined) updateData.compatibility = body.compatibility;
         if (body.repoId !== undefined) updateData.repoId = body.repoId;
+
+        // Support direct owner/repo slugs in update
+        if (body.owner || body.repo) {
+            const ownerSlug = body.owner || (body.githubUrl?.match(/github\.com\/([^\/]+)/)?.[1]);
+            let targetOwnerId = body.ownerId;
+
+            if (ownerSlug) {
+                let owner = await db.select().from(owners).where(eq(owners.slug, ownerSlug.toLowerCase())).get();
+                if (!owner) {
+                    const ownerId = `owner_${crypto.randomUUID()}`;
+                    await db.insert(owners).values({
+                        id: ownerId,
+                        slug: ownerSlug.toLowerCase(),
+                        name: ownerSlug,
+                        githubUrl: `https://github.com/${ownerSlug}`,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    }).run();
+                    owner = await db.select().from(owners).where(eq(owners.id, ownerId)).get();
+                }
+                if (owner) targetOwnerId = owner.id;
+            }
+
+            const repoSlug = body.repo || (body.githubUrl?.match(/github\.com\/[^\/]+\/([^\/]+)/)?.[1]?.replace('.git', ''));
+            if (repoSlug && targetOwnerId) {
+                let repo = await db.select().from(repos).where(and(eq(repos.slug, repoSlug.toLowerCase()), eq(repos.ownerId, targetOwnerId))).get();
+                if (!repo) {
+                    const repoId = `repo_${crypto.randomUUID()}`;
+                    await db.insert(repos).values({
+                        id: repoId,
+                        slug: repoSlug.toLowerCase(),
+                        name: repoSlug,
+                        ownerId: targetOwnerId,
+                        githubUrl: `https://github.com/${ownerSlug}/${repoSlug}`,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    }).run();
+                    repo = await db.select().from(repos).where(eq(repos.id, repoId)).get();
+                }
+                if (repo) updateData.repoId = repo.id;
+            }
+        }
 
         await db.update(skills).set(updateData).where(eq(skills.id, id)).run();
         return c.json({ success: true })

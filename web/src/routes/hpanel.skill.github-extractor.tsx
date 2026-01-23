@@ -109,10 +109,10 @@ function RouteComponent() {
         const skillsFolderResponse = await fetch(
           `https://api.github.com/repos/${owner}/${repo}/contents/skills`
         )
-        
+
         if (skillsFolderResponse.ok) {
           const skillsFolder = await skillsFolderResponse.json()
-          
+
           // Skills folder exists, look for subdirectories
           if (Array.isArray(skillsFolder)) {
             for (const item of skillsFolder) {
@@ -127,7 +127,7 @@ function RouteComponent() {
                     const skillFile = subfolderContents.find(
                       (file: any) => file.name.toLowerCase() === 'skill.md'
                     )
-                    
+
                     if (skillFile) {
                       const contentResponse = await fetch(skillFile.download_url)
                       if (contentResponse.ok) {
@@ -184,16 +184,32 @@ function RouteComponent() {
           author: owner
         }
 
-        // Extract title (first # heading)
-        const titleMatch = content.match(/^#\s+(.+)$/m)
-        if (titleMatch) {
-          metadata.name = titleMatch[1].trim()
+        // 1. Try to extract from YAML frontmatter first
+        const yamlNameMatch = content.match(/^name:\s*(.+)$/m);
+        if (yamlNameMatch) {
+          metadata.name = yamlNameMatch[1].trim().replace(/['"]/g, '');
         }
 
-        // Extract description (first paragraph after title)
-        const descMatch = content.match(/^#.+\n\n(.+?)(\n\n|$)/s)
-        if (descMatch) {
-          metadata.description = descMatch[1].trim().replace(/\n/g, ' ')
+        const yamlDescMatch = content.match(/^description:\s*(.+)$/m);
+        if (yamlDescMatch) {
+          // handle multiline description in yaml if needed, for now simple single line or start
+          metadata.description = yamlDescMatch[1].trim();
+        }
+
+        // 2. Fallback to H1 if no YAML name
+        if (!metadata.name) {
+          const titleMatch = content.match(/^#\s+(.+)$/m)
+          if (titleMatch) {
+            metadata.name = titleMatch[1].trim()
+          }
+        }
+
+        // 3. Fallback to description if no YAML description
+        if (!metadata.description) {
+          const descMatch = content.match(/^#.+\n\n(.+?)(\n\n|$)/s)
+          if (descMatch) {
+            metadata.description = descMatch[1].trim().replace(/\n/g, ' ')
+          }
         }
 
         // Extract tags from content
@@ -288,7 +304,7 @@ function RouteComponent() {
           'Authorization': `Bearer ${getAdminToken()}`
         },
         body: JSON.stringify({
-          repoId: skillData.repo_id,
+          // repoId: skillData.repo_id, // Removed to let backend resolve/create repo from githubUrl
           name: skillData.name,
           slug: skillData.slug,
           description: skillData.short_description,

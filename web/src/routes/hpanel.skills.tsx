@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DataTable } from '../components/DataTable'
 import { RightDrawer } from '../components/RightDrawer'
@@ -581,7 +581,7 @@ function SkillsPage() {
           className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Authors</option>
-          {providers.map((p: string) => <option key={p} value={p}>{p}</option>)}
+          {(Array.from(new Set(providers)) as string[]).map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
         <select
           value={ownerFilter}
@@ -589,7 +589,7 @@ function SkillsPage() {
           className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Owners</option>
-          {ownersList.map((o: string) => <option key={o} value={o}>{o}</option>)}
+          {(Array.from(new Set(ownersList)) as string[]).map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
         <select
           value={repoFilter}
@@ -597,7 +597,7 @@ function SkillsPage() {
           className="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Repos</option>
-          {reposList.map((r: string) => <option key={r} value={r}>{r}</option>)}
+          {(Array.from(new Set(reposList)) as string[]).map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
         <select
           value={categoryFilter}
@@ -694,12 +694,11 @@ function SkillsPage() {
 }
 
 function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () => void }) {
-  const [owners, setOwners] = useState<{ id: string, slug: string }[]>([]);
-  const [repos, setRepos] = useState<{ id: string, slug: string, ownerId?: string }[]>([]);
+
 
   const [form, setForm] = useState({
-    ownerId: '',
-    repoId: skill?.repoId || skill?.repo_id || '',
+    owner: skill?.owner || '',
+    repo: skill?.repo || '',
     githubUrl: skill?.githubUrl || skill?.github_url || '',
     skillFile: skill?.skillFile || skill?.skill_file || '',
     name: skill?.name || '',
@@ -747,78 +746,13 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
 
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const [ownersLoaded, setOwnersLoaded] = useState(false);
 
-  // Load owners on mount
-  useEffect(() => {
-    fetchOwners();
-  }, []);
 
-  // After owners load, find the matching owner for this skill (by slug)
-  useEffect(() => {
-    if (ownersLoaded && skill && owners.length > 0) {
-      const ownerSlug = skill.owner || skill.github_owner;
-      if (ownerSlug) {
-        const matchedOwner = owners.find(o => o.slug === ownerSlug);
-        if (matchedOwner && !form.ownerId) {
-          setForm(prev => ({ ...prev, ownerId: matchedOwner.id }));
-        }
-      }
-    }
-  }, [ownersLoaded, owners, skill]);
 
-  // When ownerId changes, fetch repos
-  useEffect(() => {
-    if (form.ownerId) {
-      fetchRepos(form.ownerId);
-    } else {
-      setRepos([]);
-    }
-  }, [form.ownerId]);
 
-  // After repos load, find the matching repo for this skill (by slug or repoId)
-  useEffect(() => {
-    if (skill && repos.length > 0) {
-      const repoSlug = skill.repo || skill.github_repo;
-      const repoId = skill.repoId || skill.repo_id;
 
-      if (repoId) {
-        const matchedRepo = repos.find(r => r.id === repoId);
-        if (matchedRepo && form.repoId !== repoId) {
-          setForm(prev => ({ ...prev, repoId: matchedRepo.id }));
-        }
-      } else if (repoSlug) {
-        const matchedRepo = repos.find(r => r.slug === repoSlug);
-        if (matchedRepo && !form.repoId) {
-          setForm(prev => ({ ...prev, repoId: matchedRepo.id }));
-        }
-      }
-    }
-  }, [repos, skill]);
 
-  function fetchOwners() {
-    fetch(`${getApiUrl()}/api/admin/owners`, {
-      headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
-    })
-      .then(res => res.json())
-      .then(data => {
-        const ownersList = Array.isArray(data) ? data : [];
-        setOwners(ownersList);
-        setOwnersLoaded(true);
-      })
-      .catch(console.error);
-  }
 
-  function fetchRepos(ownerId: string) {
-    fetch(`${getApiUrl()}/api/admin/repos?ownerId=${ownerId}`, {
-      headers: { 'Authorization': 'Bearer ralphy-default-admin-token' }
-    })
-      .then(res => res.json())
-      .then(data => {
-        setRepos(Array.isArray(data) ? data : []);
-      })
-      .catch(() => { });
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -827,8 +761,8 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
 
     try {
       const payload = {
-        repoId: form.repoId,
-        ownerId: form.ownerId,
+        repo: form.repo,
+        owner: form.owner,
         githubUrl: form.githubUrl,
         skillFile: form.skillFile,  // skill_md_url
 
@@ -885,6 +819,251 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
     setSubmitting(false)
   }
 
+  // --- GitHub Extraction Logic ---
+  const [extractionStatus, setExtractionStatus] = useState<{
+    step: 'idle' | 'validating' | 'fetching_repo' | 'scanning_files' | 'complete' | 'error';
+    message: string;
+    details?: string;
+  }>({ step: 'idle', message: '' });
+
+  const parseGitHubInput = (input: string): string | null => {
+    const clean = input.trim();
+    if (!clean) return null;
+
+    // Handle npx command
+    if (clean.startsWith('npx skills add ')) {
+      return `https://github.com/${clean.replace('npx skills add ', '').trim()}`
+    }
+
+    // Handle full URL
+    if (clean.startsWith('http')) return clean;
+
+    // Handle owner/repo format (simple validation: value/value)
+    if (/^[a-zA-Z0-9-]+\/[a-zA-Z0-9-_\.]+$/.test(clean)) {
+      return `https://github.com/${clean}`;
+    }
+
+    // Handle catch-all with slash if not just a random string
+    if (clean.includes('/')) return `https://github.com/${clean}`;
+
+    return null
+  }
+
+  const extractRepoInfo = (url: string) => {
+    try {
+      // Handle normal github URLs
+      const match = url.match(/github\.com\/([^\/]+)\/([^\/]+?)(?:\.git|\/|$)/);
+      if (match) return { owner: match[1], repo: match[2] };
+    } catch (e) { return null; }
+    return null;
+  }
+
+
+
+  const extractMetadata = (content: string, owner: string, isJson = false) => {
+    const metadata = {
+      name: '',
+      description: '',
+      category: 'general',
+      tags: [] as string[],
+      version: '1.0.0',
+      author: owner
+    }
+
+    if (isJson) {
+      try {
+        const json = JSON.parse(content);
+        metadata.name = json.name || '';
+        metadata.description = json.description || '';
+        metadata.version = json.version || '1.0.0';
+        metadata.author = typeof json.author === 'string' ? json.author : json.author?.name || owner;
+        metadata.tags = json.keywords || [];
+        if (json.keywords?.includes('ai')) metadata.category = 'ai';
+      } catch (e) { }
+      return metadata;
+    }
+
+    // 1. Try to extract from YAML frontmatter first
+    const yamlNameMatch = content.match(/^name:\s*(.+)$/m);
+    if (yamlNameMatch) {
+      metadata.name = yamlNameMatch[1].trim().replace(/['"]/g, '');
+    }
+
+    const yamlDescMatch = content.match(/^description:\s*(?:>|[|])?\n?((?:\s{2,}.+(?:\n|$))+)/m);
+    if (yamlDescMatch) {
+      metadata.description = yamlDescMatch[1].trim().replace(/\n\s+/g, ' ');
+    }
+
+    // 2. Fallback to H1 if no YAML name
+    if (!metadata.name) {
+      const titleMatch = content.match(/^#\s+(.+)$/m)
+      if (titleMatch) {
+        const potentialName = titleMatch[1].trim();
+        if (potentialName.length < 50 && !potentialName.includes('...')) {
+          metadata.name = potentialName;
+        }
+      }
+    }
+
+    // 3. Fallback to description if no YAML description
+    if (!metadata.description) {
+      const descMatch = content.match(/^#.+\n\n(.+?)(\n\n|$)/s)
+      if (descMatch) {
+        metadata.description = descMatch[1].trim().replace(/\n/g, ' ')
+      }
+    }
+
+    // Extract tags from content
+    const tagPatterns = [
+      /tags?:\s*\[([^\]]+)\]/i,
+      /keywords?:\s*\[([^\]]+)\]/i,
+      /categories?:\s*\[([^\]]+)\]/i
+    ]
+
+    for (const pattern of tagPatterns) {
+      const match = content.match(pattern)
+      if (match) {
+        metadata.tags = match[1]
+          .split(',')
+          .map(t => t.trim().replace(/['"]/g, ''))
+          .filter(Boolean)
+        break
+      }
+    }
+    return metadata
+  }
+
+  const handleExtract = async () => {
+    setExtractionStatus({ step: 'validating', message: 'Validating input...' });
+
+    const githubUrl = parseGitHubInput(form.githubUrl);
+    if (!githubUrl) {
+      setExtractionStatus({ step: 'error', message: 'Invalid GitHub URL or format', details: 'Supported formats: URL, owner/repo' });
+      return;
+    }
+
+    const repoInfo = extractRepoInfo(githubUrl);
+    if (!repoInfo) {
+      setExtractionStatus({ step: 'error', message: 'Could not extract Owner/Repo', details: 'Ensure URL contains owner/repo' });
+      return;
+    }
+
+    try {
+      const { owner, repo } = repoInfo;
+
+      // 1. Fetch Repo Data
+      setExtractionStatus({ step: 'fetching_repo', message: `Fetching repository: ${owner}/${repo}...` });
+
+      const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`)
+      if (!repoResponse.ok) throw new Error('Repository not found (Check visibility or spelling)');
+      const repoData = await repoResponse.json();
+
+      // 2. Resolve Content (Prioritize SKILL.md > package.json > README.md)
+      setExtractionStatus({ step: 'scanning_files', message: 'Scanning for Metadata (SKILL.md / package.json)...' });
+
+      let foundPath = null;
+      let foundContent = '';
+      let isPackageJson = false;
+
+      // Determine paths to check
+      const pathsToCheck = ['SKILL.md', 'skill.md'];
+
+      // smart check for skills/ folder
+      try {
+        // If we are in a repo that might be a monorepo of skills
+        const contentsResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/skills`);
+        if (contentsResponse.ok) {
+          const contents = await contentsResponse.json();
+          if (Array.isArray(contents)) {
+            // If we find folders in skills/, add SKILL.md check for each
+            contents.forEach(item => {
+              if (item.type === 'dir') {
+                pathsToCheck.push(`skills/${item.name}/SKILL.md`);
+              }
+            });
+          }
+        }
+      } catch (e) { }
+
+      // Add repo name fallback for skills folder
+      pathsToCheck.push(`skills/${repoData.name}/SKILL.md`);
+
+      // Fallbacks
+      pathsToCheck.push('package.json');
+      pathsToCheck.push('README.md');
+
+      for (const path of pathsToCheck) {
+        try {
+          const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${repoData.default_branch || 'main'}/${path}`;
+          const resp = await fetch(rawUrl);
+          if (resp.ok) {
+            foundPath = path;
+            foundContent = await resp.text();
+            if (path === 'package.json') isPackageJson = true;
+            // If we found a SKILL.md or package.json, use it. Only fallback to README if nothing else found.
+            if (!path.toLowerCase().includes('readme')) {
+              break;
+            }
+          }
+        } catch (e) { }
+      }
+
+      if (!foundPath) {
+        setExtractionStatus(prev => ({ ...prev, details: 'Warning: No metadata file found, using Repo data' }));
+      }
+
+      // 3. Extract Metadata
+      const metadata = foundContent ? extractMetadata(foundContent, owner, isPackageJson) : {
+        name: repoData.name,
+        description: repoData.description || '',
+        category: 'general',
+        tags: repoData.topics || [],
+        version: '1.0.0',
+        author: owner
+      };
+
+      // 4. Update Form
+      setForm(prev => ({
+        ...prev,
+        // Prefer extracted name, but fallback to repo name if empty or just "README"
+        name: (metadata.name && metadata.name.length < 50) ? metadata.name : repoData.name,
+        skill_slug: repoData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        description: metadata.description || repoData.description || '',
+        category: metadata.category,
+        tags: metadata.tags.length > 0 ? metadata.tags.join(', ') : (repoData.topics || []).join(', '),
+        author: metadata.author,
+        version: metadata.version,
+        totalStars: repoData.stargazers_count,
+        skillFile: (foundPath && foundPath.endsWith('.md'))
+          ? `https://raw.githubusercontent.com/${owner}/${repo}/${repoData.default_branch || 'main'}/${foundPath}`
+          : prev.skillFile,
+        // Keep Full URL populated in both places if needed
+        githubUrl: githubUrl,
+
+        owner: owner,
+        repo: repo,
+      }));
+
+      setExtractionStatus({
+        step: 'complete',
+        message: 'Extraction Successful!',
+        details: foundPath ? `Found ${foundPath}` : 'Using Repository Metadata'
+      });
+
+      // Clear status after delay
+      setTimeout(() => {
+        // Only clear if not error
+        if (extractionStatus.step !== 'error') {
+          setExtractionStatus({ step: 'idle', message: '' });
+        }
+      }, 3000);
+
+    } catch (err: any) {
+      setExtractionStatus({ step: 'error', message: 'Extraction Failed', details: err.message });
+    }
+  }
+
+
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {message && (
@@ -895,42 +1074,81 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
 
       {/* Intelligent Import is now seamless */}
       <div className="bg-blue-500/5 p-4 rounded-lg border border-blue-500/10 mb-6">
-        <label className="block text-sm font-medium text-blue-300 mb-2">GitHub Repository URL</label>
-        <input
-          type="url"
-          value={form.githubUrl}
-          onChange={(e) => setForm({ ...form, githubUrl: e.target.value })}
-          placeholder="https://github.com/owner/repo"
-          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <p className="text-xs text-gray-500 mt-2">
-          Paste a URL to automatically create identifiers and link Owner/Repo.
-        </p>
+        <label className="block text-sm font-medium text-blue-300 mb-2">GitHub Repository</label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={form.githubUrl}
+            onChange={(e) => setForm({ ...form, githubUrl: e.target.value })}
+            placeholder="owner/repo or https://github.com/..."
+            className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            onClick={handleExtract}
+            disabled={extractionStatus.step !== 'idle' && extractionStatus.step !== 'complete' && extractionStatus.step !== 'error' || !form.githubUrl}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+          >
+            {extractionStatus.step === 'validating' || extractionStatus.step === 'fetching_repo' || extractionStatus.step === 'scanning_files' ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                Wait
+              </span>
+            ) : 'Fetch'}
+          </button>
+        </div>
+
+        {/* Progress/Status Display */}
+        {extractionStatus.step !== 'idle' && (
+          <div className={`mt-3 p-3 rounded-lg text-sm border ${extractionStatus.step === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-300' :
+            extractionStatus.step === 'complete' ? 'bg-green-500/10 border-green-500/20 text-green-300' :
+              'bg-blue-500/10 border-blue-500/20 text-blue-300'
+            }`}>
+            <div className="flex items-center gap-2 font-medium">
+              {extractionStatus.step === 'validating' && '🔍 '}
+              {extractionStatus.step === 'fetching_repo' && '📦 '}
+              {extractionStatus.step === 'scanning_files' && '📄 '}
+              {extractionStatus.step === 'complete' && '✅ '}
+              {extractionStatus.step === 'error' && '❌ '}
+              {extractionStatus.message}
+            </div>
+            {extractionStatus.details && (
+              <div className="mt-1 text-xs opacity-80 pl-6">
+                {extractionStatus.details}
+              </div>
+            )}
+          </div>
+        )}
+
+        {extractionStatus.step === 'idle' && (
+          <p className="text-xs text-gray-500 mt-2">
+            Supports: <code>owner/repo</code>, Full URL, or <code>npx skills add...</code>
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Owner (Optional)</label>
-          <select
-            value={form.ownerId}
-            onChange={(e) => setForm({ ...form, ownerId: e.target.value, repoId: '' })}
+          <label className="block text-sm font-medium text-gray-300 mb-2">Owner (GitHub)</label>
+          <input
+            type="text"
+            required
+            value={form.owner}
+            onChange={(e) => setForm({ ...form, owner: e.target.value })}
+            placeholder="e.target-owner"
             className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Auto-detect from URL</option>
-            {owners.map(o => <option key={o.id} value={o.id}>{o.slug}</option>)}
-          </select>
+          />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Repo (Optional)</label>
-          <select
-            value={form.repoId}
-            onChange={(e) => setForm({ ...form, repoId: e.target.value })}
-            disabled={!form.ownerId && !form.githubUrl} // Enable if URL present (though repo list won't load, backend handles it)
-            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-          >
-            <option value="">Auto-detect / Create</option>
-            {repos.map(r => <option key={r.id} value={r.id}>{r.slug}</option>)}
-          </select>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Repo (GitHub)</label>
+          <input
+            type="text"
+            required
+            value={form.repo}
+            onChange={(e) => setForm({ ...form, repo: e.target.value })}
+            placeholder="repo-name"
+            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
       </div>
 
@@ -958,6 +1176,14 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
         <label className="block text-sm font-medium text-gray-300 mb-2">Skill File URL (SKILL.md)</label>
         <input type="url" value={form.skillFile} onChange={(e) => setForm({ ...form, skillFile: e.target.value })}
           placeholder="https://raw.githubusercontent.com/owner/repo/main/SKILL.md"
+          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
+      </div>
+
+      {/* GitHub URL (For Verification) */}
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-2">GitHub URL (Source)</label>
+        <input type="url" value={form.githubUrl} onChange={(e) => setForm({ ...form, githubUrl: e.target.value })}
+          placeholder="https://github.com/owner/repo"
           className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
       </div>
 

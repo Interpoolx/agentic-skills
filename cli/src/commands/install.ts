@@ -320,8 +320,7 @@ async function installFromUrl(url: string, skillsDir: string, options: InstallOp
     const isPrivateRepo = options.private ||
         url.includes('.git') ||
         url.includes('private') ||
-        url.includes('git@') ||
-        !loadGitHubToken(); // No public token available
+        url.includes('git@');
 
     if (isPrivateRepo) {
         // Get authentication credentials
@@ -452,12 +451,23 @@ async function getAuthCredentials(url: string, options: InstallOptions): Promise
  * Generate a folder name from GitHub URL components.
  */
 function generateFolderName(owner: string, repo: string, pathInRepo: string): string {
-    const allParts = [repo, ...pathInRepo.split('/').filter((p) => p && p.length > 0)];
-    const skillsPatternMatch = allParts.find((part) => /^[\w]+-skills$/i.test(part));
-    if (skillsPatternMatch) return skillsPatternMatch.toLowerCase();
+    // 1. If checking out a specific path, prioritize the leaf folder name
+    // e.g. skills/superdesign -> superdesign
+    const parts = pathInRepo.split('/').filter((p) => p && p.length > 0);
+    if (parts.length > 0) {
+        const lastPart = parts[parts.length - 1];
+        if (lastPart.toLowerCase() !== 'skills' &&
+            lastPart.toLowerCase() !== 'src' &&
+            lastPart.toLowerCase() !== 'dist') {
+            return lastPart.toLowerCase();
+        }
+    }
 
-    const rulesPatternMatch = allParts.find((part) => /^[\w]+-rules$/i.test(part));
-    if (rulesPatternMatch) return rulesPatternMatch.toLowerCase().replace(/-rules$/, '-skills');
+    // 2. Use repo name if it follows patterns like 'name-skill' or 'name-skills'
+    if (/^[\w]+-skills?$/i.test(repo)) {
+        return repo.toLowerCase();
+    }
 
-    return `${owner.toLowerCase()}-${repo.toLowerCase()}`.replace(/\//g, '-');
+    // 3. Simple fallback to repo name (avoid long owner-repo unless necessary)
+    return repo.toLowerCase();
 }

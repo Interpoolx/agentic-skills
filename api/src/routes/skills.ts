@@ -33,7 +33,9 @@ app.get('/api/search', async (c) => {
             const searchCondition = or(
                 like(skills.name, `%${query}%`),
                 like(skills.shortDescription, `%${query}%`),
-                like(skills.tags, `%${query}%`)
+                like(skills.tags, `%${query}%`),
+                like(skills.author, `%${query}%`),
+                like(skills.slug, `%${query}%`)
             );
 
             if (searchCondition) {
@@ -692,7 +694,7 @@ app.post('/api/skills/resolve', async (c) => {
                     author: data.author || repoData.owner.login,
                     license: data.license || repoData.license?.spdx_id || 'MIT',
                     githubUrl: `https://github.com/${ownerSlug}/${repoSlug}/tree/${defaultBranch}/${path.dirname(file.path)}`,
-                    skillFile: file.path,
+                    skillFile: rawUrl,
                     updatedAt: new Date().toISOString(),
                     indexedAt: new Date().toISOString()
                 };

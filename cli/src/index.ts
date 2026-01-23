@@ -14,7 +14,7 @@ const program = new Command();
 program
     .name(CLI_BRANDING.brand_lower_name)
     .description(`Universal Skills loader for AI Coding Agents - The #1 CLI for AI Agent Skills`)
-    .version('2.5.0')
+    .version('2.5.1')
     .hook('preAction', () => {
         showBanner();
     });
