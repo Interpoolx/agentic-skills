@@ -53,27 +53,7 @@ export function SkillsList({
                         </div>
                     </div>
 
-                    {/* Compact Tabs */}
-                    <div className="flex items-center gap-6 border-b border-white/5">
-                        <button
-                            onClick={() => onSortChange('installs')}
-                            className={clsx(
-                                "pb-3 text-[11px] font-bold uppercase tracking-widest transition-all relative",
-                                sort === 'installs' ? "text-white border-b-2 border-white" : "text-gray-500 hover:text-gray-300"
-                            )}
-                        >
-                            All Time
-                        </button>
-                        <button
-                            onClick={() => onSortChange('recent')}
-                            className={clsx(
-                                "pb-3 text-[11px] font-bold uppercase tracking-widest transition-all relative",
-                                sort === 'recent' ? "text-white border-b-2 border-white" : "text-gray-500 hover:text-gray-300"
-                            )}
-                        >
-                            Trending
-                        </button>
-                    </div>
+
                 </div>
             )}
 

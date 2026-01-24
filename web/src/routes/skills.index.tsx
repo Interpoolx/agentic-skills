@@ -44,7 +44,7 @@ function SkillsPage() {
         description: s.description,
         category: s.category,
         owner: s.github_owner,
-        repo: s.github_repo,
+        repo: s.repo,
         skill_slug: s.skill_slug,
         tags: typeof s.tags === 'string' ? JSON.parse(s.tags || '[]') : (s.tags || []),
         source: s.github_url,
@@ -76,7 +76,7 @@ function SkillsPage() {
             {/* Sleek Hero Section */}
             <div className="max-w-6xl mx-auto px-6 pt-16 pb-6">
                 <div className="space-y-4">
-                    <pre className="text-[6px] sm:text-[8px] md:text-xs font-bold text-white leading-none tracking-tighter whitespace-pre font-mono select-none opacity-90" style={{ textShadow: "0 0 20px rgba(255,255,255,0.3)" }}>
+                    <pre className="text-[10px] sm:text-xs md:text-sm lg:text-base font-bold text-white leading-none tracking-tighter whitespace-pre font-mono select-none opacity-90" style={{ textShadow: "0 0 20px rgba(255,255,255,0.3)" }}>
                         {`   __   ___ ___ _  _ _____ ___ ___   ___ _  _____ _    _    ___ 
   /_\\ / __| __| \\| |_   _|_ _/ __| / __| |/ /_ _| |  | |  / __|
  / _ \\ (_ | _|| .\` | | |  | | (__  \\__ \\ ' < | || |__| |__\\__ \\
