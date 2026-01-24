@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import type { MarketplaceData } from '../types'
-import clsx from 'clsx'
+
 
 export function SkillsList({
     data,
@@ -11,8 +11,6 @@ export function SkillsList({
     onPageChange,
     searchQuery,
     onSearchChange,
-    sort,
-    onSortChange,
     hideControls = false
 }: {
     data: MarketplaceData
@@ -23,8 +21,6 @@ export function SkillsList({
     onPageChange: (page: number) => void
     searchQuery: string
     onSearchChange: (q: string) => void
-    sort: string
-    onSortChange: (s: string) => void
     hideControls?: boolean
 }) {
     const totalPages = Math.ceil(totalCount / limit)

@@ -147,8 +147,7 @@ function SkillsPage() {
                     onPageChange={setPage}
                     searchQuery={searchQuery}
                     onSearchChange={handleSearchChange}
-                    sort={sort}
-                    onSortChange={(s) => setSort(s as any)}
+
                 />
             </main>
         </div>

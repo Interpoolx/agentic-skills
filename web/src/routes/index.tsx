@@ -341,8 +341,6 @@ function Index() {
                             onPageChange={() => { }}
                             searchQuery=""
                             onSearchChange={() => { }}
-                            sort="installed"
-                            onSortChange={() => { }}
                         />
                     ) : (
                         <div className="flex justify-center py-20">
