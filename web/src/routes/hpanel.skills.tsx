@@ -57,6 +57,8 @@ interface Skill {
   source_url?: string
   daily_installs?: number
   weekly_installs?: number
+  skill_md_content?: string
+  skillMdContent?: string
 }
 
 
@@ -104,7 +106,9 @@ function SkillsPage() {
         status: statusFilter,
         sort: sortBy,
       })
-      const res = await fetch(`${getApiUrl()}/api/search?${params.toString()}`)
+      const res = await fetch(`${getApiUrl()}/api/admin/skills?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${getAdminToken()}` }
+      })
       return res.json()
     }
   })
@@ -876,6 +880,7 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
     const metadata = {
       name: '',
       description: '',
+      short_description: '',
       category: 'general',
       tags: [] as string[],
       version: '1.0.0',
@@ -887,6 +892,7 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
         const json = JSON.parse(content);
         metadata.name = json.name || '';
         metadata.description = json.description || '';
+        metadata.short_description = json.short_description || json.description || '';
         metadata.version = json.version || '1.0.0';
         metadata.author = typeof json.author === 'string' ? json.author : json.author?.name || owner;
         metadata.tags = json.keywords || [];
@@ -903,7 +909,22 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
 
     const yamlDescMatch = content.match(/^description:\s*(?:>|[|])?\n?((?:\s{2,}.+(?:\n|$))+)/m);
     if (yamlDescMatch) {
-      metadata.description = yamlDescMatch[1].trim().replace(/\n\s+/g, ' ');
+      const desc = yamlDescMatch[1].trim().replace(/\n\s+/g, ' ');
+      metadata.description = desc;
+      metadata.short_description = desc;
+    } else {
+      // Try single line description
+      const simpleDescMatch = content.match(/^description:\s*(.+)$/m);
+      if (simpleDescMatch) {
+        const desc = simpleDescMatch[1].trim().replace(/['"]/g, '');
+        metadata.description = desc;
+        metadata.short_description = desc;
+      }
+    }
+
+    const yamlShortDescMatch = content.match(/^short_description:\s*(.+)$/m);
+    if (yamlShortDescMatch) {
+      metadata.short_description = yamlShortDescMatch[1].trim().replace(/['"]/g, '');
     }
 
     // 2. Fallback to H1 if no YAML name

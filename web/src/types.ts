@@ -51,6 +51,8 @@ export interface Skill {
     source_url?: string
     daily_installs?: number
     weekly_installs?: number
+    skill_md_content?: string
+    skillMdContent?: string
 }
 
 export interface MarketplaceData {

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { drizzle } from 'drizzle-orm/d1'
 import { skills, owners, repos, prompts, prds, prdCategories, promptCategories, promptCollections, skillSubmissions } from '../db/schema'
-import { eq, desc, asc, sql, and, like, or } from 'drizzle-orm'
+import { eq, desc, asc, sql, and, like, or, ne } from 'drizzle-orm'
 import { extractSkillFromGithub } from '../utils/github'
 
 interface Env {
@@ -188,6 +188,124 @@ app.delete('/api/admin/repos/:id', async (c) => {
         return c.json({ success: true })
     } catch (error) {
         return c.json({ error: 'Failed to delete repo' }, 500)
+    }
+})
+
+
+
+app.get('/api/admin/skills', async (c) => {
+    const db = drizzle(c.env.DB)
+    const query = c.req.query('q') || ''
+    const category = c.req.query('category')
+    const limit = Math.min(parseInt(c.req.query('limit') || '25'), 10000)
+    const page = parseInt(c.req.query('page') || '1')
+    const sort = c.req.query('sort') || 'installs'
+    const status = c.req.query('status')
+    const author = c.req.query('author')
+    const owner = c.req.query('owner')
+    const repo = c.req.query('repo')
+    const offset = (page - 1) * limit
+
+    try {
+        let whereConditions: any[] = []
+
+        if (category) whereConditions.push(eq(skills.category, category));
+        if (status) whereConditions.push(eq(skills.status, status));
+        if (author) whereConditions.push(eq(skills.author, author));
+
+        if (query) {
+            const searchCondition = or(
+                like(skills.name, `%${query}%`),
+                like(skills.shortDescription, `%${query}%`),
+                like(skills.tags, `%${query}%`),
+                like(skills.author, `%${query}%`),
+                like(skills.slug, `%${query}%`)
+            );
+            if (searchCondition) whereConditions.push(searchCondition);
+        }
+
+        // Additional joins/filters handled in query building
+
+        let orderByClause: any = desc(skills.totalInstalls);
+        if (sort === 'newest') orderByClause = desc(skills.createdAt);
+        else if (sort === 'stars') orderByClause = desc(skills.totalStars);
+        else if (sort === 'name') orderByClause = asc(skills.name);
+        else if (sort === 'relevance' && !query) orderByClause = desc(skills.totalInstalls);
+
+        const baseQuery = db.select({
+            id: skills.id,
+            name: skills.name,
+            slug: skills.slug,
+            shortDescription: skills.shortDescription,
+            category: skills.category,
+            tags: skills.tags,
+            version: skills.version,
+            totalInstalls: skills.totalInstalls,
+            dailyInstalls: skills.dailyInstalls,
+            weeklyInstalls: skills.weeklyInstalls,
+            totalStars: skills.totalStars,
+            averageRating: skills.averageRating,
+            totalReviews: skills.totalReviews,
+            isVerified: skills.isVerified,
+            isFeatured: skills.isFeatured,
+            updatedAt: skills.updatedAt,
+            createdAt: skills.createdAt,
+            status: skills.status,
+            compatibility: skills.compatibility,
+            githubRepo: skills.githubRepo,
+            githubOwner: skills.githubOwner,
+            skillMdContent: skills.skillMdContent,
+            sourceUrl: skills.sourceUrl,
+            githubUrl: skills.githubUrl,
+            ownerSlug: owners.slug,
+            repoSlug: repos.slug,
+            repoId: skills.repoId
+        })
+            .from(skills)
+            .leftJoin(repos, eq(skills.repoId, repos.id))
+            .leftJoin(owners, eq(repos.ownerId, owners.id))
+
+        if (owner) whereConditions.push(eq(owners.slug, owner));
+        if (repo) whereConditions.push(eq(repos.slug, repo));
+
+        const validWhere = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+        const results = await baseQuery
+            .where(validWhere)
+            .orderBy(orderByClause)
+            .limit(limit)
+            .offset(offset)
+            .all();
+
+        const flatResults = results.map(r => ({
+            ...r,
+            github_owner: r.ownerSlug,
+            github_repo: r.repoSlug,
+            skill_slug: r.slug,
+            install_count: r.totalInstalls,
+            description: r.shortDescription,
+            skill_md_content: r.skillMdContent
+        }));
+
+        const totalCount = await db.select({ count: sql<number>`count(*)` })
+            .from(skills)
+            .leftJoin(repos, eq(skills.repoId, repos.id))
+            .leftJoin(owners, eq(repos.ownerId, owners.id))
+            .where(validWhere)
+            .get();
+
+        return c.json({
+            skills: flatResults,
+            pagination: {
+                page,
+                limit,
+                total: totalCount?.count || 0,
+                hasMore: (offset + limit) < (totalCount?.count || 0)
+            }
+        })
+    } catch (error) {
+        console.error('Admin skills search error:', error)
+        return c.json({ error: 'Search failed', skills: [] }, 500)
     }
 })
 
