@@ -410,7 +410,7 @@ app.post('/api/admin/skills', async (c) => {
             repoId: body.repoId,
             name: body.name,
             slug: body.slug,
-            shortDescription: body.description,
+            shortDescription: body.shortDescription || body.description,
             category: body.category,
             tags: Array.isArray(body.tags) ? JSON.stringify(body.tags) : body.tags,
             version: body.version,
@@ -465,6 +465,7 @@ app.patch('/api/admin/skills/:id', async (c) => {
         if (body.name !== undefined) updateData.name = body.name;
         if (body.slug !== undefined) updateData.slug = body.slug;
         if (body.description !== undefined) updateData.shortDescription = body.description;
+        if (body.shortDescription !== undefined) updateData.shortDescription = body.shortDescription;
         if (body.category !== undefined) updateData.category = body.category;
         if (body.tags !== undefined) updateData.tags = Array.isArray(body.tags) ? JSON.stringify(body.tags) : body.tags;
         if (body.version !== undefined) updateData.version = body.version;
@@ -1593,6 +1594,141 @@ app.get('/api/admin/submissions', async (c) => {
     } catch (error) {
         console.error('List submissions error:', error)
         return c.json({ error: 'Failed to list submissions' }, 500)
+    }
+})
+
+app.post('/api/admin/import-json', async (c) => {
+    const db = drizzle(c.env.DB)
+    const body = await c.req.json()
+    const { skills: skillsToImport } = body
+
+    if (!skillsToImport || !Array.isArray(skillsToImport)) {
+        return c.json({ error: 'Invalid input: skills array required' }, 400)
+    }
+
+    try {
+        let imported = 0
+        let duplicates = 0
+        let errors = 0
+        const errorDetails: string[] = []
+        let ownersCreated = 0
+        let reposCreated = 0
+
+        for (const skillData of skillsToImport) {
+            try {
+                // 1. Resolve/Create Owner
+                const ownerSlug = skillData.owner || (skillData.github_owner) || (skillData.githubUrl ? skillData.githubUrl.match(/github\.com\/([^\/]+)/)?.[1] : '');
+                if (!ownerSlug) throw new Error(`Missing owner for skill: ${skillData.name}`);
+
+                let owner = await db.select().from(owners).where(eq(owners.slug, ownerSlug.toLowerCase())).get();
+                if (!owner) {
+                    const ownerId = `owner_${crypto.randomUUID()}`;
+                    await db.insert(owners).values({
+                        id: ownerId,
+                        slug: ownerSlug.toLowerCase(),
+                        name: ownerSlug, // Default to slug if name unknown
+                        githubUrl: `https://github.com/${ownerSlug}`,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    }).run();
+                    owner = await db.select().from(owners).where(eq(owners.id, ownerId)).get();
+                    ownersCreated++;
+                }
+
+                // 2. Resolve/Create Repo
+                const repoSlug = skillData.repo || (skillData.github_repo) || (skillData.githubUrl ? skillData.githubUrl.match(/github\.com\/[^\/]+\/([^\/]+)/)?.[1]?.replace('.git', '') : '');
+                if (!repoSlug) throw new Error(`Missing repo for skill: ${skillData.name}`);
+
+                let repo = await db.select().from(repos).where(and(eq(repos.slug, repoSlug.toLowerCase()), eq(repos.ownerId, owner!.id))).get();
+                if (!repo) {
+                    const repoId = `repo_${crypto.randomUUID()}`;
+                    await db.insert(repos).values({
+                        id: repoId,
+                        ownerId: owner!.id,
+                        slug: repoSlug.toLowerCase(),
+                        name: repoSlug,
+                        githubUrl: `https://github.com/${ownerSlug}/${repoSlug}`,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    }).run();
+                    repo = await db.select().from(repos).where(eq(repos.id, repoId)).get();
+                    reposCreated++;
+                }
+
+                // 3. Insert/Update Skill
+                const skillSlug = skillData.slug || skillData.skill_slug || skillData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+
+                const existingSkill = await db.select().from(skills)
+                    .where(and(eq(skills.repoId, repo!.id), eq(skills.slug, skillSlug)))
+                    .get();
+
+                const skillValues = {
+                    repoId: repo!.id,
+                    slug: skillSlug,
+                    name: skillData.name,
+                    shortDescription: skillData.short_description || skillData.shortDescription || skillData.description || '',
+                    fullDescription: skillData.full_description || skillData.fullDescription || skillData.description || '',
+                    category: skillData.category || 'general',
+                    tags: Array.isArray(skillData.tags) ? JSON.stringify(skillData.tags) : skillData.tags,
+                    version: skillData.version || '1.0.0',
+                    author: skillData.author || ownerSlug,
+                    githubUrl: skillData.github_url || skillData.githubUrl,
+                    skillFile: skillData.skill_file || skillData.skillFile,
+                    sourceUrl: skillData.source_url || skillData.sourceUrl,
+                    skillMdContent: skillData.skill_md_content || skillData.skillMdContent,
+
+                    // Stats
+                    totalInstalls: skillData.total_installs || skillData.totalInstalls || skillData.install_count || 0,
+                    dailyInstalls: skillData.daily_installs || skillData.dailyInstalls || 0,
+                    weeklyInstalls: skillData.weekly_installs || skillData.weeklyInstalls || 0,
+                    totalStars: skillData.total_stars || skillData.totalStars || skillData.stars || 0,
+                    averageRating: skillData.average_rating || skillData.averageRating || 0,
+                    totalReviews: skillData.total_reviews || skillData.totalReviews || 0,
+
+                    // Status
+                    status: skillData.status || 'published',
+                    isVerified: (skillData.is_verified || skillData.isVerified) ? 1 : 0,
+                    isFeatured: (skillData.is_featured || skillData.isFeatured) ? 1 : 0,
+
+                    compatibility: typeof skillData.compatibility === 'string' ? skillData.compatibility : JSON.stringify(skillData.compatibility || {}),
+
+                    updatedAt: new Date().toISOString()
+                };
+
+                if (existingSkill) {
+                    await db.update(skills).set(skillValues).where(eq(skills.id, existingSkill.id)).run();
+                    duplicates++;
+                } else {
+                    const newId = skillData.id || `skill_${crypto.randomUUID()}`;
+                    await db.insert(skills).values({
+                        ...skillValues,
+                        id: newId,
+                        createdAt: new Date().toISOString(),
+                        indexedAt: new Date().toISOString()
+                    }).run();
+                    imported++;
+                }
+
+            } catch (err: any) {
+                errors++;
+                errorDetails.push(`Failed to import ${skillData.name || 'unknown'}: ${err.message}`);
+                console.error(`Import error for ${skillData.name}:`, err);
+            }
+        }
+
+        return c.json({
+            success: true,
+            imported,
+            duplicates,
+            errors,
+            ownersCreated,
+            reposCreated,
+            errorDetails: errorDetails.length > 0 ? errorDetails : undefined
+        })
+
+    } catch (error: any) {
+        console.error('Import process fatal error:', error)
+        return c.json({ error: 'Import failed: ' + error.message }, 500)
     }
 })
 

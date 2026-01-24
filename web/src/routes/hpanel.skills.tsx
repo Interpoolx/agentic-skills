@@ -1049,6 +1049,7 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
       const metadata = foundContent ? extractMetadata(foundContent, owner, isPackageJson) : {
         name: repoData.name,
         description: repoData.description || '',
+        short_description: repoData.description || '',
         category: 'general',
         tags: repoData.topics || [],
         version: '1.0.0',
@@ -1061,7 +1062,7 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
         // Prefer extracted name, but fallback to repo name if empty or just "README"
         name: (metadata.name && metadata.name.length < 50) ? metadata.name : repoData.name,
         skill_slug: repoData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        description: metadata.description || repoData.description || '',
+        description: metadata.short_description || metadata.description || repoData.description || '',
         category: metadata.category,
         tags: metadata.tags.length > 0 ? metadata.tags.join(', ') : (repoData.topics || []).join(', '),
         author: metadata.author,

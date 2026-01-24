@@ -18,7 +18,7 @@ app.get('/api/search', async (c) => {
     const db = drizzle(c.env.DB)
     const query = c.req.query('q') || ''
     const category = c.req.query('category')
-    const limit = Math.min(parseInt(c.req.query('limit') || '20'), 10000)
+    const limit = Math.min(parseInt(c.req.query('limit') || '20'), 50)
     const page = parseInt(c.req.query('page') || '1')
     const sort = c.req.query('sort') || 'installs' // installs, trending, hot, recent, name
     const offset = (page - 1) * limit
@@ -127,7 +127,7 @@ app.get('/api/search', async (c) => {
         })
     } catch (error) {
         console.error('Search error:', error)
-        return c.json({ error: 'Search failed', skills: [] }, 500)
+        return c.json({ error: 'Search failed: ' + (error instanceof Error ? error.message : String(error)), skills: [] }, 500)
     }
 })
 
@@ -730,7 +730,9 @@ app.post('/api/skills/resolve', async (c) => {
 
                 // If no frontmatter/invalid, construct basic metadata
                 const name = data.name || file.name;
-                const description = data.description || repoData.description || 'No description';
+                // description in frontmatter is often the short description, but we check specific fields
+                const shortDesc = data.short_description || data.shortDescription || data.description || repoData.description || 'No description';
+                const fullDesc = data.full_description || data.fullDescription || data.description || repoData.description || '';
 
                 let existingSkill = await db.select().from(skills)
                     .where(and(eq(skills.repoId, repoRecord!.id), eq(skills.slug, file.slug)))
@@ -740,8 +742,8 @@ app.post('/api/skills/resolve', async (c) => {
                     repoId: repoRecord!.id,
                     slug: file.slug,
                     name: name,
-                    shortDescription: description.substring(0, 200),
-                    fullDescription: description,
+                    shortDescription: shortDesc.substring(0, 500), // Increased limit slightly
+                    fullDescription: fullDesc,
                     version: data.version || '1.0.0',
                     category: data.category || 'general',
                     tags: JSON.stringify(data.tags || []),
@@ -750,6 +752,7 @@ app.post('/api/skills/resolve', async (c) => {
                     githubUrl: `https://github.com/${ownerSlug}/${repoSlug}/tree/${defaultBranch}/${path.dirname(file.path)}`,
                     skillFile: rawUrl,
                     sourceUrl: `https://github.com/${ownerSlug}/${repoSlug}/blob/${defaultBranch}/${file.path}`,
+                    skillMdContent: content,
                     updatedAt: new Date().toISOString(),
                     indexedAt: new Date().toISOString()
                 };

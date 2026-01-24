@@ -4,5 +4,9 @@ export const MARKETPLACE_URL = `https://raw.githubusercontent.com/${BRANDING.git
 
 // D1 Database API
 export const API_URL = import.meta.env.PROD
-    ? `https://${BRANDING.brand_lower_name}-api.rajeshkumarlawyer007.workers.dev`
+    ? `https://api.agenticskills.org`
     : 'http://localhost:8787'
+
+// Fallback API URL if context is missing
+export const DEFAULT_API_URL = 'https://api.agenticskills.org';
+export const PREVIEW_URL = 'https://agenticskills.org';
