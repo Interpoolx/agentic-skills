@@ -13,7 +13,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const OUTPUT_FILE = path.join(__dirname, '..', 'db_export.sql');
-const DB_NAME = 'ralphy-skills-db';
+const DB_NAME = 'agentic-skills-db';
 
 // Tables to export (excluding FTS virtual tables)
 const TABLES = [

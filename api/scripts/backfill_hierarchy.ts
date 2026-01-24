@@ -4,7 +4,7 @@ import { owners, repos, skills } from '../src/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
-const db = drizzle(new Database('d:/react-projects/ralphy-skills/api/db/local.sqlite'));
+const db = drizzle(new Database('d:/react-projects/agentic-skills/api/db/local.sqlite'));
 
 async function migrate() {
     console.log('Starting migration...');

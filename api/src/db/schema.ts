@@ -90,11 +90,16 @@ export const skills = sqliteTable(
 
         // External Links
         npmPackageUrl: text("npm_package_url"),
+        sourceUrl: text("source_url"),
         githubUrl: text("github_url"), // Direct link to skill file/folder
+        githubOwner: text("github_owner"),
+        githubRepo: text("github_repo"),
 
         // Engagement Metrics
         totalInstalls: integer("total_installs").default(0),
         weeklyInstalls: integer("weekly_installs").default(0),
+        dailyInstalls: integer("daily_installs").default(0),
+        skillMdContent: text("skill_md_content"),
         totalDownloads: integer("total_downloads").default(0),
         totalViews: integer("total_views").default(0),
         totalLikes: integer("total_likes").default(0),

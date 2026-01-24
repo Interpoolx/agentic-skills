@@ -298,15 +298,21 @@ app.post('/api/admin/skills', async (c) => {
             version: body.version,
             status: body.status,
             githubUrl: body.githubUrl,
+            sourceUrl: body.sourceUrl, // Add sourceUrl
+            githubOwner: body.githubOwner, // Add githubOwner
+            githubRepo: body.githubRepo, // Add githubRepo
             author: body.author,
             skillFile: body.skillFile,
             totalInstalls: body.totalInstalls || 0,
+            dailyInstalls: body.dailyInstalls || 0,
+            weeklyInstalls: body.weeklyInstalls || 0,
             totalStars: body.totalStars || 0,
             averageRating: body.averageRating || 0,
             totalReviews: body.totalReviews || 0,
             isVerified: body.isVerified || 0,
             isFeatured: body.isFeatured || 0,
             compatibility: body.compatibility || '{}',
+            skillMdContent: body.skillMdContent,
             updatedAt: new Date().toISOString()
         };
 
@@ -356,6 +362,12 @@ app.patch('/api/admin/skills/:id', async (c) => {
         if (body.isFeatured !== undefined) updateData.isFeatured = body.isFeatured;
         if (body.compatibility !== undefined) updateData.compatibility = body.compatibility;
         if (body.repoId !== undefined) updateData.repoId = body.repoId;
+        if (body.sourceUrl !== undefined) updateData.sourceUrl = body.sourceUrl;
+        if (body.dailyInstalls !== undefined) updateData.dailyInstalls = body.dailyInstalls;
+        if (body.weeklyInstalls !== undefined) updateData.weeklyInstalls = body.weeklyInstalls;
+        if (body.githubOwner !== undefined) updateData.githubOwner = body.githubOwner;
+        if (body.githubRepo !== undefined) updateData.githubRepo = body.githubRepo;
+        if (body.skillMdContent !== undefined) updateData.skillMdContent = body.skillMdContent;
 
         // Support direct owner/repo slugs in update
         if (body.owner || body.repo) {
@@ -1416,6 +1428,12 @@ app.post('/api/admin/import-json', async (c) => {
                     agents: skillData.compatible_agents || (skillData.compatibility?.agents) || ['claude-code', 'cursor'],
                     requirements: skillData.requirements || (skillData.compatibility?.requirements) || []
                 }),
+                sourceUrl: skillData.source_url || skillData.sourceUrl || null,
+                dailyInstalls: parseInt(skillData.daily_installs) || 0,
+                weeklyInstalls: parseInt(skillData.weekly_installs) || 0,
+                githubOwner: ownerSlug,
+                githubRepo: skillData.github_repo || null,
+                skillMdContent: skillData.skill_md_content || null,
                 updatedAt: new Date().toISOString()
             };
 

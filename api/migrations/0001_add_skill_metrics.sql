@@ -1,0 +1,2 @@
+ALTER TABLE skills ADD COLUMN source_url TEXT;
+ALTER TABLE skills ADD COLUMN daily_installs INTEGER DEFAULT 0;

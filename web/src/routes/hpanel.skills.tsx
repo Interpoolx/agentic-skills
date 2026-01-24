@@ -54,6 +54,9 @@ interface Skill {
   repo?: string       // repo slug from join
   github_owner?: string
   github_repo?: string
+  source_url?: string
+  daily_installs?: number
+  weekly_installs?: number
 }
 
 
@@ -741,6 +744,11 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
         return Array.isArray(comp.agents) ? comp.agents.join(', ') : '';
       } catch { return ''; }
     })(),
+    source_url: skill?.source_url || skill?.metadata?.source_url || '',
+    github_repo: skill?.github_repo || '',
+    daily_installs: skill?.daily_installs || 0,
+    weekly_installs: skill?.weekly_installs || 0,
+    skill_md_content: skill?.skill_md_content || skill?.skillMdContent || '',
   })
 
   const [submitting, setSubmitting] = useState(false)
@@ -781,6 +789,11 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
         totalReviews: form.totalReviews,
         isVerified: form.isVerified,
         isFeatured: form.isFeatured,
+        sourceUrl: form.source_url,
+        githubRepo: form.github_repo,
+        dailyInstalls: form.daily_installs,
+        weeklyInstalls: form.weekly_installs,
+        skillMdContent: form.skill_md_content,
 
         // Compatibility
         compatibility: JSON.stringify({
@@ -1038,6 +1051,7 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
           : prev.skillFile,
         // Keep Full URL populated in both places if needed
         githubUrl: githubUrl,
+        skill_md_content: foundContent || '',
 
         owner: owner,
         repo: repo,
@@ -1151,6 +1165,17 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
         </div>
       </div>
 
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-2">GitHub Repo (Metadata)</label>
+        <input
+          type="text"
+          value={form.github_repo}
+          onChange={(e) => setForm({ ...form, github_repo: e.target.value })}
+          placeholder="repo-name-metadata"
+          className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">Name *</label>
@@ -1178,12 +1203,26 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
           className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
       </div>
 
-      {/* GitHub URL (For Verification) */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">GitHub URL (Source)</label>
-        <input type="url" value={form.githubUrl} onChange={(e) => setForm({ ...form, githubUrl: e.target.value })}
-          placeholder="https://github.com/owner/repo"
+        <label className="block text-sm font-medium text-gray-300 mb-2">Skill Markdown Content</label>
+        <textarea rows={10} value={form.skill_md_content} onChange={(e) => setForm({ ...form, skill_md_content: e.target.value })}
+          placeholder="# Skill Name\n\nFull description and usage instructions..."
           className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">GitHub URL (Source)</label>
+          <input type="url" value={form.githubUrl} onChange={(e) => setForm({ ...form, githubUrl: e.target.value })}
+            placeholder="https://github.com/owner/repo"
+            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Source URL (Specific File)</label>
+          <input type="url" value={form.source_url} onChange={(e) => setForm({ ...form, source_url: e.target.value })}
+            placeholder="https://github.com/owner/repo/blob/main/SKILL.md"
+            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -1272,6 +1311,16 @@ function SkillForm({ skill, onSuccess }: { skill: Skill | null; onSuccess: () =>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Reviews</label>
             <input type="number" value={form.totalReviews} onChange={(e) => setForm({ ...form, totalReviews: parseInt(e.target.value) || 0 })}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Daily Installs</label>
+            <input type="number" value={form.daily_installs} onChange={(e) => setForm({ ...form, daily_installs: parseInt(e.target.value) || 0 })}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Weekly Installs</label>
+            <input type="number" value={form.weekly_installs} onChange={(e) => setForm({ ...form, weekly_installs: parseInt(e.target.value) || 0 })}
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
         </div>

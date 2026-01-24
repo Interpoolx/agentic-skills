@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS skills (
     github_stars INTEGER DEFAULT 0,
     github_forks INTEGER DEFAULT 0,
     install_count INTEGER DEFAULT 0,
+    daily_installs INTEGER DEFAULT 0,
+    weekly_installs INTEGER DEFAULT 0,
+    source_url TEXT,
+    skill_md_content TEXT,
     compatibility TEXT,
     import_source TEXT DEFAULT 'manual', -- marketplace, claude-plugins, manual
     platform TEXT DEFAULT 'global', -- global, claude, cursor, codex, copilot

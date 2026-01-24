@@ -8,7 +8,18 @@ export const Route = createFileRoute('/hpanel/add')({
 const API_URL = 'http://localhost:8787'
 
 function AddSkillPage() {
-  const [form, setForm] = useState({ name: '', description: '', category: 'development', author: '', github_url: '', tags: '' })
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    category: 'development',
+    author: '',
+    github_url: '',
+    tags: '',
+    source_url: '',
+    github_repo: '',
+    daily_installs: 0,
+    weekly_installs: 0
+  })
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
@@ -31,6 +42,10 @@ function AddSkillPage() {
             category: form.category,
             author: { name: form.author, github: form.author },
             source: form.github_url,
+            source_url: form.source_url,
+            github_repo: form.github_repo,
+            daily_installs: Number(form.daily_installs) || 0,
+            weekly_installs: Number(form.weekly_installs) || 0,
             tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
             verified: false
           }]
@@ -40,7 +55,18 @@ function AddSkillPage() {
       const data = await res.json()
       if (data.imported > 0) {
         setSuccess(true)
-        setForm({ name: '', description: '', category: 'development', author: '', github_url: '', tags: '' })
+        setForm({
+          name: '',
+          description: '',
+          category: 'development',
+          author: '',
+          github_url: '',
+          tags: '',
+          source_url: '',
+          github_repo: '',
+          daily_installs: 0,
+          weekly_installs: 0
+        })
       } else {
         setError('Failed to add skill')
       }
@@ -113,6 +139,34 @@ function AddSkillPage() {
               <input type="text" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })}
                 className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="react, typescript, frontend" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Source URL</label>
+                <input type="url" value={form.source_url} onChange={(e) => setForm({ ...form, source_url: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://github.com/user/repo/blob/main/SKILL.md" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">GitHub Repo</label>
+                <input type="text" value={form.github_repo} onChange={(e) => setForm({ ...form, github_repo: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="repo-name" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Daily Installs</label>
+                <input type="number" value={form.daily_installs} onChange={(e) => setForm({ ...form, daily_installs: parseInt(e.target.value) })}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Weekly Installs</label>
+                <input type="number" value={form.weekly_installs} onChange={(e) => setForm({ ...form, weekly_installs: parseInt(e.target.value) })}
+                  className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
             </div>
 
             <button type="submit" disabled={submitting}

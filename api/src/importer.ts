@@ -172,11 +172,12 @@ async function importToD1(skills: ExternalSkill[], db: D1Database): Promise<{ im
             const githubRepo = githubMatch?.[2] || null
 
             await db.prepare(`
-                INSERT INTO skills (id, name, description, category, tags, author, version, github_url, github_owner, github_repo, created_at, updated_at, indexed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'))
+                INSERT INTO skills (id, name, description, category, tags, author, version, github_url, source_url, github_owner, github_repo, weekly_installs, daily_installs, created_at, updated_at, indexed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, datetime('now'), datetime('now'), datetime('now'))
                 ON CONFLICT(id) DO UPDATE SET
                     name = excluded.name,
                     description = excluded.description,
+                    source_url = excluded.source_url,
                     updated_at = datetime('now')
             `).bind(
                 id,
@@ -187,6 +188,7 @@ async function importToD1(skills: ExternalSkill[], db: D1Database): Promise<{ im
                 skill.author || null,
                 skill.version || '1.0.0',
                 githubUrl,
+                skill.sourceUrl || null,
                 githubOwner,
                 githubRepo
             ).run()

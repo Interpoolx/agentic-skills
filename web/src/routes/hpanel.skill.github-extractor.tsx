@@ -33,6 +33,9 @@ interface SkillData {
   compatibility: string
   created_at: string
   updated_at: string
+  source_url?: string
+  daily_installs: number
+  weekly_installs: number
 }
 
 function RouteComponent() {
@@ -260,6 +263,9 @@ function RouteComponent() {
         author: metadata.author,
         version: metadata.version,
         total_installs: 0,
+        daily_installs: 0,
+        weekly_installs: 0,
+        source_url: githubUrl,
         total_stars: repoData.stargazers_count || 0,
         average_rating: 0,
         total_reviews: 0,
@@ -318,7 +324,12 @@ function RouteComponent() {
           totalStars: skillData.total_stars,
           isVerified: skillData.is_verified,
           isFeatured: skillData.is_featured,
-          compatibility: skillData.compatibility
+          compatibility: skillData.compatibility,
+          githubOwner: skillData.owner,
+          githubRepo: skillData.repo,
+          sourceUrl: skillData.source_url,
+          dailyInstalls: skillData.daily_installs,
+          weeklyInstalls: skillData.weekly_installs
         })
       })
 

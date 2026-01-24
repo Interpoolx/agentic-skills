@@ -96,7 +96,7 @@ function executeSQL(sql: string) {
     fs.writeFileSync(tempFile, sql, 'utf-8');
 
     try {
-        execSync(`npx wrangler d1 execute ralphy-skills-db --local --file="${tempFile}"`, {
+        execSync(`npx wrangler d1 execute agentic-skills-db --local --file="${tempFile}"`, {
             cwd: path.join(__dirname, '..'),
             stdio: 'pipe'
         });
@@ -107,7 +107,7 @@ function executeSQL(sql: string) {
 
 function executeSQLCommand(command: string) {
     try {
-        execSync(`npx wrangler d1 execute ralphy-skills-db --local --command="${command.replace(/"/g, '\\"')}"`, {
+        execSync(`npx wrangler d1 execute agentic-skills-db --local --command="${command.replace(/"/g, '\\"')}"`, {
             cwd: path.join(__dirname, '..'),
             stdio: 'pipe'
         });

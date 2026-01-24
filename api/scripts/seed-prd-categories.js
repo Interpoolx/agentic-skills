@@ -23,7 +23,7 @@ function seed(remote = false) {
         const sql = `INSERT INTO prd_categories (id, name, description, icon, prd_count) VALUES ('${cat.id}', '${cat.name}', '${cat.description}', '${cat.icon}', 0) ON CONFLICT(id) DO UPDATE SET name=excluded.name, description=excluded.description, icon=excluded.icon;`;
 
         try {
-            const cmd = `npx wrangler d1 execute ralphy-skills-db ${remote ? '--remote' : '--local'} --command="${sql.replace(/"/g, '\\"')}"`;
+            const cmd = `npx wrangler d1 execute agentic-skills-db ${remote ? '--remote' : '--local'} --command="${sql.replace(/"/g, '\\"')}"`;
             execSync(cmd, { stdio: 'inherit' });
             console.log(`✅ Seeded: ${cat.name}`);
         } catch (error) {

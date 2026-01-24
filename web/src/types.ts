@@ -48,6 +48,9 @@ export interface Skill {
     verified?: boolean
     relatedSkills?: any[]
     reviews_list?: any[]
+    source_url?: string
+    daily_installs?: number
+    weekly_installs?: number
 }
 
 export interface MarketplaceData {

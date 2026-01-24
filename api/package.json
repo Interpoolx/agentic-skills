@@ -7,7 +7,18 @@
         "dev": "wrangler dev",
         "deploy": "wrangler deploy",
         "db:migrate": "wrangler d1 execute agentic-skills-db --file=./schema.sql",
-        "db:migrate:local": "wrangler d1 execute agentic-skills-db --local --file=./schema.sql"
+        "db:migrate:local": "wrangler d1 execute agentic-skills-db --local --file=./schema.sql",
+        "db:schema:push": "drizzle-kit push",
+        "db:export:local": "node scripts/export-local-db.js",
+        "db:pull": "node scripts/d1.cjs pull",
+        "db:push": "node scripts/d1.cjs push",
+        "db:backup": "node scripts/d1.cjs backup --local",
+        "db:backup:remote": "node scripts/d1.cjs backup --remote",
+        "db:restore": "node scripts/d1.cjs restore",
+        "db:pull:schema": "node scripts/d1.cjs pull --schema-only",
+        "db:pull:data": "node scripts/d1.cjs pull --data-only",
+        "db:push:schema": "node scripts/d1.cjs push --schema-only",
+        "db:push:data": "node scripts/d1.cjs push --data-only"
     },
     "dependencies": {
         "@types/uuid": "^10.0.0",

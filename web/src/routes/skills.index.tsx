@@ -17,7 +17,7 @@ function SkillsPage() {
     const [searchQuery, setSearchQuery] = useState('')
     const [category] = useState<string | null>(null)
     const [provider] = useState<string | null>(null)
-    const [sort, setSort] = useState<'installs' | 'recent' | 'name'>('installs')
+    const [sort, setSort] = useState<'installs' | 'trending' | 'hot' | 'recent' | 'name'>('installs')
 
     // Fetch skills with caching and server-side filtering
     const { data: searchData, isLoading } = useQuery({
@@ -74,17 +74,20 @@ function SkillsPage() {
             />
 
             {/* Sleek Hero Section */}
-            <div className="max-w-6xl mx-auto px-6 pt-16 pb-12">
+            <div className="max-w-6xl mx-auto px-6 pt-16 pb-6">
                 <div className="space-y-4">
-                    <h1 className="text-4xl font-bold tracking-tight text-white uppercase">
-                        skills
-                    </h1>
-                    <p className="text-lg text-gray-400 max-w-2xl font-medium leading-relaxed">
+                    <pre className="text-[6px] sm:text-[8px] md:text-xs font-bold text-white leading-none tracking-tighter whitespace-pre font-mono select-none opacity-90" style={{ textShadow: "0 0 20px rgba(255,255,255,0.3)" }}>
+                        {`   __   ___ ___ _  _ _____ ___ ___   ___ _  _____ _    _    ___ 
+  /_\\ / __| __| \\| |_   _|_ _/ __| / __| |/ /_ _| |  | |  / __|
+ / _ \\ (_ | _|| .\` | | |  | | (__  \\__ \\ ' < | || |__| |__\\__ \\
+/_/ \\_\\___|___|_|\\_| |_| |___\\___| |___/_|\\_\\___|____|____|___/`}
+                    </pre>
+                    <p className="text-lg text-gray-400 max-w-2xl font-medium leading-relaxed mt-4">
                         Discover and install procedural knowledge for your AI agents with a single command.
                     </p>
                 </div>
 
-                <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-12 border-t border-white/5 pt-10">
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-12 border-t border-white/5 pt-8">
                     <div>
                         <h3 className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-3">
                             One command install
@@ -117,6 +120,24 @@ function SkillsPage() {
             </div>
 
             <main className="max-w-6xl mx-auto px-6 py-12 pb-32">
+
+                {/* Filters */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-6 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
+                        <button
+                            onClick={() => setSort('installs')}
+                            className={`whitespace-nowrap pb-2 border-b-2 transition-all text-sm font-medium ${sort === 'installs' ? 'border-white text-white' : 'border-transparent text-gray-500 hover:text-white hover:border-white/50'}`}
+                        >
+                            All Time ({searchData?.pagination?.total?.toLocaleString() || '...'})
+                        </button>
+                        <button
+                            onClick={() => setSort('recent')}
+                            className={`whitespace-nowrap pb-2 border-b-2 transition-all text-sm font-medium ${sort === 'recent' ? 'border-white text-white' : 'border-transparent text-gray-500 hover:text-white hover:border-white/50'}`}
+                        >
+                            Recently Added
+                        </button>
+                    </div>
+                </div>
                 <SkillsList
                     data={marketplaceData}
                     isLoading={isLoading}

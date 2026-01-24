@@ -20,6 +20,7 @@ app.get('/api/search', async (c) => {
     const category = c.req.query('category')
     const limit = Math.min(parseInt(c.req.query('limit') || '20'), 10000)
     const page = parseInt(c.req.query('page') || '1')
+    const sort = c.req.query('sort') || 'installs' // installs, trending, hot, recent, name
     const offset = (page - 1) * limit
 
     try {
@@ -45,6 +46,19 @@ app.get('/api/search', async (c) => {
 
         const validWhere = and(...whereConditions);
 
+
+        let orderByClause = desc(skills.totalInstalls);
+
+        if (sort === 'trending') {
+            orderByClause = desc(skills.dailyInstalls);
+        } else if (sort === 'hot') {
+            orderByClause = desc(skills.weeklyInstalls);
+        } else if (sort === 'recent') {
+            orderByClause = desc(skills.createdAt);
+        } else if (sort === 'name') {
+            orderByClause = asc(skills.name);
+        }
+
         const results = await db.select({
             id: skills.id,
             name: skills.name,
@@ -54,16 +68,23 @@ app.get('/api/search', async (c) => {
             tags: skills.tags,
             version: skills.version,
             totalInstalls: skills.totalInstalls,
+            weeklyInstalls: skills.weeklyInstalls,
+            dailyInstalls: skills.dailyInstalls,
             totalStars: skills.totalStars,
             skillFile: skills.skillFile,
+            sourceUrl: skills.sourceUrl,
             author: skills.author,
             repoId: skills.repoId,
             averageRating: skills.averageRating,
             totalReviews: skills.totalReviews,
             isVerified: skills.isVerified,
             isFeatured: skills.isFeatured,
+            updatedAt: skills.updatedAt,
+            createdAt: skills.createdAt,
             status: skills.status,
             compatibility: skills.compatibility,
+            githubRepo: skills.githubRepo,
+            skillMdContent: skills.skillMdContent,
             owner: owners.slug,
             repo: repos.slug,
             githubUrl: skills.githubUrl
@@ -72,7 +93,7 @@ app.get('/api/search', async (c) => {
             .leftJoin(repos, eq(skills.repoId, repos.id))
             .leftJoin(owners, eq(repos.ownerId, owners.id))
             .where(validWhere)
-            .orderBy(desc(skills.totalInstalls))
+            .orderBy(orderByClause)
             .limit(limit)
             .offset(offset)
             .all();
@@ -80,10 +101,14 @@ app.get('/api/search', async (c) => {
         const flatResults = results.map(r => ({
             ...r,
             github_owner: r.owner,
-            github_repo: r.repo,
+            github_repo: r.githubRepo || null,  // Use actual column, not repo slug
+            skill_md_content: r.skillMdContent || null,
             skill_slug: r.slug,
             skill_file: r.skillFile,
+            source_url: r.sourceUrl,
             install_count: r.totalInstalls,
+            daily_installs: r.dailyInstalls,
+            weekly_installs: r.weeklyInstalls,
             stars: r.totalStars,
             is_verified: r.isVerified,
             is_featured: r.isFeatured
@@ -293,7 +318,11 @@ app.post('/api/skills/:id/install', async (c) => {
 
     try {
         await db.update(skills)
-            .set({ totalInstalls: sql`total_installs + 1` })
+            .set({
+                totalInstalls: sql`total_installs + 1`,
+                weeklyInstalls: sql`weekly_installs + 1`,
+                dailyInstalls: sql`daily_installs + 1`
+            })
             .where(eq(skills.id, skillId))
             .run();
         return c.json({ success: true })
@@ -720,6 +749,7 @@ app.post('/api/skills/resolve', async (c) => {
                     license: data.license || repoData.license?.spdx_id || 'MIT',
                     githubUrl: `https://github.com/${ownerSlug}/${repoSlug}/tree/${defaultBranch}/${path.dirname(file.path)}`,
                     skillFile: rawUrl,
+                    sourceUrl: `https://github.com/${ownerSlug}/${repoSlug}/blob/${defaultBranch}/${file.path}`,
                     updatedAt: new Date().toISOString(),
                     indexedAt: new Date().toISOString()
                 };
@@ -733,6 +763,8 @@ app.post('/api/skills/resolve', async (c) => {
                         id: newId,
                         ...newSkillValues,
                         totalInstalls: 0,
+                        weeklyInstalls: 0,
+                        dailyInstalls: 0,
                         totalStars: 0,
                         status: 'published',
                         createdAt: new Date().toISOString()

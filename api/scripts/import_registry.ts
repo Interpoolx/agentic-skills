@@ -6,12 +6,12 @@ import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
-const db = drizzle(new Database('d:/react-projects/ralphy-skills/api/db/local.sqlite'));
+const db = drizzle(new Database('d:/react-projects/agentic-skills/api/db/local.sqlite'));
 
 async function importRegistry() {
     console.log('Starting registry import...');
 
-    const registryPath = path.join('d:/react-projects/ralphy-skills/data/skills_registry.json');
+    const registryPath = path.join('d:/react-projects/agentic-skills/data/skills_registry.json');
     if (!fs.existsSync(registryPath)) {
         console.error('Registry file not found:', registryPath);
         return;
