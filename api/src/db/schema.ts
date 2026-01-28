@@ -609,6 +609,8 @@ export const prompts = sqliteTable(
 
         // Status
         status: text("status").default("published"), // draft, published, archived, flagged
+        isPublic: integer("is_public").default(1),
+        isActive: integer("is_active").default(1),
         isFeatured: integer("is_featured").default(0),
         isVerified: integer("is_verified").default(0), // Verified by moderators/experts
         isCommunityChoice: integer("is_community_choice").default(0),

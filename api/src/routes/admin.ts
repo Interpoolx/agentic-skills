@@ -538,11 +538,62 @@ app.patch('/api/admin/skills/:id', async (c) => {
     }
 })
 
+const extractVariablesFromText = (text: string) => {
+    const matches = text.match(/{{([^{}]+)}}/g);
+    if (!matches) return [];
+    return [...new Set(matches)].map(m => {
+        const name = m.replace(/{{|}}/g, '').trim();
+        return {
+            name,
+            description: `Value for ${name}`,
+            required: true,
+            default: ""
+        };
+    });
+};
+
+const cleanPromptMetadata = (p: any, extractVars = true) => {
+    const safeParse = (str: any, fallback: any) => {
+        if (typeof str !== 'string' || !str || str === 'null') return fallback;
+        try {
+            return JSON.parse(str);
+        } catch (e) {
+            return fallback;
+        }
+    };
+
+    let storedVars = safeParse(p.variables, []);
+    if (extractVars && storedVars.length === 0) {
+        const textVars = extractVariablesFromText(p.promptText || '');
+        if (textVars.length > 0) {
+            storedVars = textVars;
+        }
+    }
+
+    // Clean up to remove camelCase duplicates and corrupted strings
+    const { isPublic, isActive, isFeatured, isVerified, isCommunityChoice, ...rest } = p;
+
+    return {
+        ...rest,
+        tags: safeParse(p.tags, []),
+        useCases: safeParse(p.useCases, []),
+        modelCompatibility: safeParse(p.modelCompatibility, {}),
+        variables: storedVars,
+        is_public: (isPublic === 1 || isPublic === '1' || isPublic === true || isPublic === 'is_public') ? 1 : 0,
+        is_active: (isActive === 1 || isActive === '1' || isActive === true || isActive === 'is_active') ? 1 : 0,
+        is_featured: (isFeatured === 1 || isFeatured === '1' || isFeatured === true) ? 1 : 0,
+        is_verified: (isVerified === 1 || isVerified === '1' || isVerified === true) ? 1 : 0,
+        is_community_choice: (isCommunityChoice === 1 || isCommunityChoice === '1' || isCommunityChoice === true) ? 1 : 0
+    };
+};
+
+
 app.get('/api/admin/prompts', async (c) => {
     const db = drizzle(c.env.DB)
     try {
         const result = await db.select().from(prompts).orderBy(desc(prompts.createdAt)).all()
-        return c.json(result)
+        const parsedResult = result.map(p => cleanPromptMetadata(p))
+        return c.json(parsedResult)
     } catch (error) {
         return c.json({ error: 'Failed to list prompts' }, 500)
     }
@@ -558,6 +609,15 @@ app.post('/api/admin/prompts', async (c) => {
 
     try {
         const id = `prompt_${crypto.randomUUID()}`
+
+        // Auto-extract variables if not provided
+        let vars = body.variables ? (typeof body.variables === 'string' ? JSON.parse(body.variables) : body.variables) : [];
+        if (vars.length === 0) {
+            vars = extractVariablesFromText(body.promptText || '');
+        }
+
+        const hasVars = vars.length > 0 ? 1 : 0;
+
         await db.insert(prompts).values({
             id,
             slug: body.slug,
@@ -570,15 +630,75 @@ app.post('/api/admin/prompts', async (c) => {
             promptType: body.promptType || 'instruction',
             complexity: body.complexity || 'intermediate',
             author: body.author || 'Admin',
-            status: 'published',
+            variables: JSON.stringify(vars),
+            hasVariables: hasVars,
+            useCases: body.useCases ? (typeof body.useCases === 'string' ? body.useCases : JSON.stringify(body.useCases)) : '[]',
+            modelCompatibility: body.modelCompatibility ? (typeof body.modelCompatibility === 'string' ? body.modelCompatibility : JSON.stringify(body.modelCompatibility)) : '{}',
+            isPublic: (body.is_public === 1 || body.is_public === 'is_public') ? 1 : 0,
+            isActive: (body.is_active === 1 || body.is_active === 'is_active') ? 1 : 0,
+            isFeatured: (body.is_featured === 1 || body.is_featured === true) ? 1 : 0,
+            status: body.status || 'published',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         }).run()
 
         return c.json({ success: true, id })
-    } catch (error) {
+    } catch (error: any) {
         console.error('Create prompt error:', error)
-        return c.json({ error: 'Failed to create prompt' }, 500)
+        return c.json({ error: error.message || 'Failed to create prompt' }, 500)
+    }
+})
+
+app.patch('/api/admin/prompts/:id', async (c) => {
+    const db = drizzle(c.env.DB)
+    const id = c.req.param('id')
+    const body = await c.req.json()
+
+    try {
+        const updateData: any = {
+            updatedAt: new Date().toISOString()
+        }
+
+        if (body.title !== undefined) updateData.title = body.title;
+        if (body.slug !== undefined) updateData.slug = body.slug;
+        if (body.description !== undefined) updateData.description = body.description;
+        if (body.promptText !== undefined) updateData.promptText = body.promptText;
+        if (body.systemPrompt !== undefined) updateData.systemPrompt = body.systemPrompt;
+        if (body.category !== undefined) updateData.category = body.category;
+        if (body.tags !== undefined) updateData.tags = typeof body.tags === 'string' ? body.tags : JSON.stringify(body.tags);
+        if (body.promptType !== undefined) updateData.promptType = body.promptType;
+        if (body.complexity !== undefined) updateData.complexity = body.complexity;
+        if (body.author !== undefined) updateData.author = body.author;
+        if (body.status !== undefined) updateData.status = body.status;
+        if (body.is_public !== undefined) updateData.isPublic = (body.is_public === 1 || body.is_public === 'is_public') ? 1 : 0;
+        if (body.is_active !== undefined) updateData.isActive = (body.is_active === 1 || body.is_active === 'is_active') ? 1 : 0;
+        if (body.is_featured !== undefined) updateData.isFeatured = (body.is_featured === 1 || body.is_featured === true) ? 1 : 0;
+
+        if (body.variables !== undefined || body.promptText !== undefined) {
+            let vars = body.variables ? (typeof body.variables === 'string' ? JSON.parse(body.variables) : body.variables) : [];
+
+            // If variables not provided but text changed, or if variables is empty, try to extract
+            if ((!body.variables || vars.length === 0) && body.promptText) {
+                const textVars = extractVariablesFromText(body.promptText);
+                if (textVars.length > 0) {
+                    vars = textVars;
+                }
+            }
+
+            if (vars.length > 0) {
+                updateData.variables = JSON.stringify(vars);
+                updateData.hasVariables = 1;
+            } else if (body.variables !== undefined) {
+                updateData.variables = '[]';
+                updateData.hasVariables = 0;
+            }
+        }
+
+        await db.update(prompts).set(updateData).where(eq(prompts.id, id)).run();
+        return c.json({ success: true })
+    } catch (error: any) {
+        console.error('Update prompt error:', error)
+        return c.json({ error: error.message || 'Failed to update prompt' }, 500)
     }
 })
 

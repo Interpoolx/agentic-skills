@@ -30,6 +30,7 @@ interface Prompt {
   successRate: number
   isFeatured: number
   hasVariables: number
+  variables?: string | any[] // JSON string or parsed array
   version: string
   createdAt: string
   updatedAt: string
@@ -105,6 +106,55 @@ function PromptDetailPage() {
   })
 
   const apiVariables: PromptVariable[] = variablesData?.variables || []
+
+  // Initialize variable values with defaults from prompt data
+  useEffect(() => {
+    if (prompt) {
+      const initialValues: Record<string, string> = {}
+
+      // 1. Try to get defaults from the prompt.variables JSON field
+      try {
+        if (prompt.variables) {
+          const promptVars = typeof prompt.variables === 'string'
+            ? JSON.parse(prompt.variables)
+            : prompt.variables;
+
+          if (Array.isArray(promptVars)) {
+            promptVars.forEach((v: any) => {
+              if (v.name && (v.default !== undefined || v.defaultValue !== undefined)) {
+                initialValues[v.name] = (v.default ?? v.defaultValue ?? '').toString()
+              }
+            })
+          }
+        }
+      } catch (e) {
+        // Silently ignore parsing errors
+      }
+
+      // 2. Overlay with apiVariables (from the separate variables endpoint)
+      if (apiVariables && apiVariables.length > 0) {
+        apiVariables.forEach(v => {
+          if (v.name && v.defaultValue) {
+            initialValues[v.name] = v.defaultValue
+          }
+        })
+      }
+
+      // Merge with existing values (user input takes precedence)
+      if (Object.keys(initialValues).length > 0) {
+        setVariableValues(prev => {
+          // Only apply defaults if the field is currently empty
+          const merged = { ...prev }
+          Object.keys(initialValues).forEach(key => {
+            if (!merged[key]) {
+              merged[key] = initialValues[key]
+            }
+          })
+          return merged
+        })
+      }
+    }
+  }, [prompt, apiVariables])
 
   // Extract variables from prompt text as fallback
   const detectedVariables = useMemo(() => {
@@ -267,8 +317,8 @@ function PromptDetailPage() {
               <button
                 onClick={() => setActiveTab('playground')}
                 className={`px-6 py-3 text-sm font-medium transition-colors relative ${activeTab === 'playground'
-                    ? 'text-purple-400'
-                    : 'text-gray-400 hover:text-white'
+                  ? 'text-purple-400'
+                  : 'text-gray-400 hover:text-white'
                   }`}
               >
                 <div className="flex items-center gap-2">
@@ -282,8 +332,8 @@ function PromptDetailPage() {
               <button
                 onClick={() => setActiveTab('template')}
                 className={`px-6 py-3 text-sm font-medium transition-colors relative ${activeTab === 'template'
-                    ? 'text-purple-400'
-                    : 'text-gray-400 hover:text-white'
+                  ? 'text-purple-400'
+                  : 'text-gray-400 hover:text-white'
                   }`}
               >
                 <div className="flex items-center gap-2">
@@ -355,10 +405,10 @@ function PromptDetailPage() {
                     <button
                       onClick={() => handleCopy(generatedPrompt)}
                       className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${copied
-                          ? 'bg-green-500/20 text-green-400'
-                          : allVariablesFilled
-                            ? 'bg-purple-500 text-white hover:bg-purple-600'
-                            : 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30'
+                        ? 'bg-green-500/20 text-green-400'
+                        : allVariablesFilled
+                          ? 'bg-purple-500 text-white hover:bg-purple-600'
+                          : 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30'
                         }`}
                     >
                       {copied ? '✓ Copied!' : '📋 Copy'}

@@ -172,3 +172,52 @@ CREATE INDEX IF NOT EXISTS idx_prds_slug ON prds(slug);
 CREATE INDEX IF NOT EXISTS idx_prds_views ON prds(view_count DESC);
 CREATE INDEX IF NOT EXISTS idx_prds_likes ON prds(like_count DESC);
 
+-- Prompts table
+CREATE TABLE IF NOT EXISTS prompts (
+    id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    prompt_text TEXT NOT NULL,
+    system_prompt TEXT,
+    category TEXT DEFAULT 'general',
+    tags TEXT,
+    use_cases TEXT,
+    model_compatibility TEXT,
+    recommended_model TEXT,
+    prompt_type TEXT DEFAULT 'instruction',
+    complexity TEXT DEFAULT 'intermediate',
+    expected_output_format TEXT,
+    variables TEXT,
+    has_variables INTEGER DEFAULT 0,
+    author TEXT,
+    author_id TEXT,
+    source_url TEXT,
+    license TEXT DEFAULT 'CC-BY-4.0',
+    view_count INTEGER DEFAULT 0,
+    copy_count INTEGER DEFAULT 0,
+    use_count INTEGER DEFAULT 0,
+    favorite_count INTEGER DEFAULT 0,
+    share_count INTEGER DEFAULT 0,
+    average_rating REAL DEFAULT 0,
+    review_count INTEGER DEFAULT 0,
+    success_rate REAL DEFAULT 0,
+    parent_prompt_id TEXT,
+    version TEXT DEFAULT '1.0.0',
+    status TEXT DEFAULT 'published',
+    is_public INTEGER DEFAULT 1,
+    is_active INTEGER DEFAULT 1,
+    is_featured INTEGER DEFAULT 0,
+    is_verified INTEGER DEFAULT 0,
+    is_community_choice INTEGER DEFAULT 0,
+    estimated_tokens INTEGER,
+    language TEXT DEFAULT 'en',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    published_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_prompts_slug ON prompts(slug);
+CREATE INDEX IF NOT EXISTS idx_prompts_category ON prompts(category);
+CREATE INDEX IF NOT EXISTS idx_prompts_status ON prompts(status);
+CREATE INDEX IF NOT EXISTS idx_prompts_featured ON prompts(is_featured);
