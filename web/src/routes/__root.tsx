@@ -14,18 +14,46 @@ export const Route = createRootRoute({
 
 function RootComponent() {
     const [docsOpen, setDocsOpen] = useState(false)
+    const [topBarVisible, setTopBarVisible] = useState(true)
     const location = useLocation()
+
+    const TopBar = topBarVisible ? (
+        <div className="bg-indigo-600 text-white py-1 flex items-center justify-center gap-1 text-[10px] sm:text-xs font-medium relative z-[60]">
+            <span>Domain and site {BRANDING.domain_name} is available for sale...</span>
+            <a 
+                href="https://x.com/web4strategy" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="underline underline-offset-2 hover:text-indigo-100 transition-colors font-bold"
+            >
+                buy now
+            </a>
+            <button 
+                onClick={() => setTopBarVisible(false)}
+                className="absolute right-4 p-1 hover:bg-white/10 rounded-full transition-colors"
+                aria-label="Close message"
+            >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+    ) : null
 
     // Skip header/footer for admin panel
     if (location.pathname.startsWith('/hpanel')) {
         return (
-            <Outlet />
+            <div className="min-h-screen bg-black">
+                {TopBar}
+                <Outlet />
+            </div>
         )
     }
 
     return (
         <div className="min-h-screen bg-black">
             <nav className="border-b border-white/5 bg-black/80 backdrop-blur-md sticky top-0 z-50">
+                {TopBar}
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16 items-center">
                         <div className="flex items-center gap-2">
